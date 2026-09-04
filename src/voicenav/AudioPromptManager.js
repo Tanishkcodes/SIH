@@ -7,12 +7,15 @@
 import audioFeedback from './AudioFeedback';
 import { getAudioPrompt } from './LanguagePack';
 
-function isMutedPortal() {
+export function isMutedPortal() {
   if (typeof window === 'undefined') return false;
-  const path = window.location.pathname.toLowerCase();
+  const path = (window.location.pathname || '').toLowerCase();
+  const search = (window.location.search || '').toLowerCase();
   return path.includes('/physician') ||
          path.includes('/doctor') ||
-         path.includes('/admin');
+         path.includes('/admin') ||
+         search.includes('role=doctor') ||
+         search.includes('role=admin');
 }
 
 class AudioPromptManager {
@@ -28,28 +31,43 @@ class AudioPromptManager {
   }
 
   // The initial greeting uses bundled recordings only, independent of API availability.
-  async speakInitialLandingWelcome() {
+  async speakInitialLandingWelcome(force = false) {
     if (isMutedPortal()) return;
     this.currentPageId = 'landing';
-    if (!this.isEnabled || this.hasSpokenWelcome.landing_initial_hi) return;
-    // Use the bundled studio recording first so the greeting is immediate and
-    // independent of ElevenLabs credits/network availability.
-    const spoken = await audioFeedback.playWelcomeAudio('/welcome_hi.mp3', '/welcome_sarah.mp3');
+    if (!this.isEnabled) return;
+    if (!force && this.hasSpokenWelcome.landing_initial_hi) return;
+
+    // Use the bundled studio recording welcome-hi.mp3 (with fallback to welcome_hi.mp3)
+    const spoken = await audioFeedback.playWelcomeAudio('/welcome-hi.mp3', '/welcome_hi.mp3');
     if (spoken) {
       this.hasSpokenWelcome.landing_initial_hi = true;
+      this._cleanupLandingGestureRetry();
       return;
     }
 
-    // Some browsers block autoplay until the first user gesture. Retry once,
-    // but only if the visitor is still on the landing page.
+    // Browsers block autoplay until the first user gesture.
+    // Listen for any user interaction (pointerdown, click, touchstart, keydown) to immediately play!
     if (typeof window !== 'undefined' && !this._landingGestureRetry) {
+      const events = ['pointerdown', 'click', 'touchstart', 'keydown'];
       this._landingGestureRetry = () => {
-        const retry = this._landingGestureRetry;
-        this._landingGestureRetry = null;
-        if (retry) window.removeEventListener('pointerdown', retry);
-        if (this.currentPageId === 'landing') this.speakInitialLandingWelcome();
+        this._cleanupLandingGestureRetry();
+        if (this.currentPageId === 'landing' || window.location.pathname === '/') {
+          this.speakInitialLandingWelcome(true);
+        }
       };
-      window.addEventListener('pointerdown', this._landingGestureRetry, { once: true });
+      events.forEach(evt => {
+        window.addEventListener(evt, this._landingGestureRetry, { once: true, passive: true });
+      });
+    }
+  }
+
+  _cleanupLandingGestureRetry() {
+    if (this._landingGestureRetry && typeof window !== 'undefined') {
+      const events = ['pointerdown', 'click', 'touchstart', 'keydown'];
+      events.forEach(evt => {
+        window.removeEventListener(evt, this._landingGestureRetry);
+      });
+      this._landingGestureRetry = null;
     }
   }
 
@@ -112,7 +130,7 @@ class AudioPromptManager {
 
   // Force speak a page welcome (even if already spoken)
   async forceSpeak(promptKey) {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     const text = getAudioPrompt(this.currentLang, promptKey);
     if (text) {
       await audioFeedback.interrupt(text, this.currentLang);
@@ -121,13 +139,13 @@ class AudioPromptManager {
 
   // Speak custom text
   async speakText(text) {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     await audioFeedback.speak(text, this.currentLang);
   }
 
   // Speak and interrupt any current speech
   async interruptWith(text, lang = null) {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     const targetLang = lang || this.currentLang || 'en';
     await audioFeedback.interrupt(text, targetLang);
   }
@@ -135,8 +153,9 @@ class AudioPromptManager {
   // Start idle detection — speaks prompt if user is inactive
   startIdleDetection(customPrompt = null) {
     this.clearIdleTimer();
+    if (isMutedPortal()) return;
     this.idleTimer = setTimeout(() => {
-      if (this.isEnabled) {
+      if (this.isEnabled && !isMutedPortal()) {
         const text = customPrompt || getAudioPrompt(this.currentLang, 'idlePrompt');
         if (text) {
           audioFeedback.speak(text, this.currentLang);
@@ -147,6 +166,10 @@ class AudioPromptManager {
 
   // Reset idle timer (call on any user interaction)
   resetIdleTimer() {
+    if (isMutedPortal()) {
+      this.clearIdleTimer();
+      return;
+    }
     if (this.idleTimer) {
       this.clearIdleTimer();
       this.startIdleDetection();
@@ -162,7 +185,7 @@ class AudioPromptManager {
 
   // Speak encouragement after a response
   async speakEncouragement() {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     const text = getAudioPrompt(this.currentLang, 'encouragement');
     if (text && Math.random() > 0.5) { // Only sometimes to avoid being annoying
       await audioFeedback.speak(text, this.currentLang);
@@ -171,7 +194,7 @@ class AudioPromptManager {
 
   // Speak section completion
   async speakSectionDone() {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     audioFeedback.playSuccess();
     const text = getAudioPrompt(this.currentLang, 'sectionDone');
     if (text) {
@@ -181,7 +204,7 @@ class AudioPromptManager {
 
   // Speak error/not understood
   async speakError() {
-    if (!this.isEnabled) return;
+    if (isMutedPortal() || !this.isEnabled) return;
     audioFeedback.playError();
     const text = getAudioPrompt(this.currentLang, 'errorPrompt');
     if (text) {
@@ -201,9 +224,8 @@ class AudioPromptManager {
       clearTimeout(this._langChangeTimer);
       this._langChangeTimer = null;
     }
-    if (this._landingGestureRetry && typeof window !== 'undefined') {
-      window.removeEventListener('pointerdown', this._landingGestureRetry);
-      this._landingGestureRetry = null;
+    if (this.currentPageId !== 'landing') {
+      this._cleanupLandingGestureRetry();
     }
     audioFeedback.stop();
   }

@@ -584,13 +584,17 @@ class CommandParser {
       const globalCommands = this.pageCommands['__global__'] || {};
       
       const contextCommands = {};
-      if (context.actions) {
-        context.actions.forEach(a => { contextCommands[a.intent] = a.description; });
+      if (Array.isArray(context.actions)) {
+        context.actions.forEach(a => {
+          if (a && a.intent) {
+            contextCommands[a.intent] = a.description || a.intent;
+          }
+        });
       }
 
       const semantic = await aiCommandEngine.parseIntent(
         transcript,
-        { ...contextCommands, ...availableCommands },
+        { ...availableCommands, ...contextCommands },
         globalCommands,
         {
           page: currentPage || this.currentPage,
@@ -605,7 +609,8 @@ class CommandParser {
         return {
           ...semantic,
           raw: transcript,
-          value: semantic.intent === 'free_text' ? transcript : semantic.value,
+          value: semantic.intent === 'free_text' ? transcript : (semantic.value !== undefined ? semantic.value : semantic.target),
+          target: semantic.target || null,
         };
       }
     } catch (error) {

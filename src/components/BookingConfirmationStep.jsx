@@ -160,7 +160,7 @@ export default function BookingConfirmationStep({
               <div style={{ fontSize: '0.78rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 {c.time}
               </div>
-              <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', marginTop: '1px' }}>
+              <div className="notranslate" translate="no" style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', marginTop: '1px' }}>
                 {selectedSlot}
               </div>
               <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>

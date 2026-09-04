@@ -6,6 +6,7 @@
 import React from 'react';
 import { useVoiceNav } from './VoiceNavProvider';
 import { t } from './LanguagePack';
+import { isMutedPortal } from './AudioFeedback';
 import '../styles/voicenav.css';
 
 export default function VoiceNavIndicator() {
@@ -23,7 +24,7 @@ export default function VoiceNavIndicator() {
     language,
   } = useVoiceNav();
 
-  if (!isVoiceEnabled) return null;
+  if (!isVoiceEnabled || isMutedPortal()) return null;
 
   const stateConfig = {
     idle: {

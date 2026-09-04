@@ -20,12 +20,18 @@ export function resolveVoiceSelection(items, value, getLabels = item => [item.na
 }
 
 export function resolveVoiceEntity(items, command, getLabels = item => [item.name]) {
-  const target = String(command?.target || '');
+  if (!items || !items.length) return null;
+  const target = String(command?.target || '').trim();
   const byId = items.filter(item => target && String(item.id) === target);
   if (byId.length === 1) return byId[0];
   const value = command?.value;
   if (value !== undefined && value !== null && String(value).trim()) {
-    return resolveVoiceSelection(items, value, getLabels);
+    const res = resolveVoiceSelection(items, value, getLabels);
+    if (res) return res;
   }
-  return resolveVoiceSelection(items, command?.raw || target, getLabels);
+  if (target) {
+    const res = resolveVoiceSelection(items, target, getLabels);
+    if (res) return res;
+  }
+  return resolveVoiceSelection(items, command?.raw || '', getLabels);
 }

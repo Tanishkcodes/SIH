@@ -7,6 +7,7 @@ import StatCounter from '../components/StatCounter';
 import { HeartPulse, Stethoscope, Users, Settings, ArrowRight, ShieldCheck, Activity, CheckCircle2, Clock, Globe2, Ear, Quote, ChevronDown, ChevronUp, Mail, Twitter, Linkedin, Facebook, Mic, ClipboardList } from 'lucide-react';
 import SwasthyaLogo from '../components/SwasthyaLogo';
 import BrandTitle from '../components/BrandTitle';
+import aiCommandEngine from '../engine/AICommandEngine';
 import '../styles/landing.css';
 import { db } from '../lib/db';
 
@@ -14,7 +15,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const { session, setAuth, setPatient } = useSession();
   const { t, currentLang } = useLanguage();
-  const { audioPromptManager, registerPage, unregisterPage } = useVoiceNav();
+  const { audioPromptManager, registerPage, unregisterPage, setOnTranscript, setDictationMode, speak } = useVoiceNav();
   const [openFaq, setOpenFaq] = useState(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
@@ -46,19 +47,31 @@ export default function LandingPage() {
     }
   };
 
+  // Instantly trigger welcome-hi.mp3 on initial open or page refresh
+  useEffect(() => {
+    if (audioPromptManager) {
+      audioPromptManager.speakInitialLandingWelcome(true);
+    }
+  }, [audioPromptManager]);
+
   useEffect(() => {
     // Register comprehensive voice commands for landing page
     registerPage('landing', {
       next: handleStartSession,
       start_session: handleStartSession,
+      startConsultation: handleStartSession,
+      consult_doctor: handleStartSession,
+      triage: handleStartSession,
+      get_started: handleStartSession,
+      enter_portal: handleStartSession,
       bookAppointment: handleBookAppointment,
       book_appointment: handleBookAppointment,
       register_new: () => navigate('/auth?role=patient'),
       login_patient: () => navigate('/auth?role=patient'),
       login_doctor: () => navigate('/auth?role=doctor'),
       login_admin: () => navigate('/auth?role=admin'),
-      login_abha: () => navigate('/auth?role=patient'),
-      login_aadhaar: () => navigate('/auth?role=patient'),
+      login_abha: () => navigate('/auth?role=patient', { state: { activeTab: 'abha' } }),
+      login_aadhaar: () => navigate('/auth?role=patient', { state: { activeTab: 'aadhaar' } }),
       select_language: () => navigate('/language'),
       change_language: () => navigate('/language'),
       scan_document: () => navigate('/scan'),
@@ -77,6 +90,10 @@ export default function LandingPage() {
     }, {
       next: ['Begin using Swasthya Setu or continue to the correct signed-in portal'],
       start_session: ['Start, begin, continue, or get healthcare assistance'],
+      startConsultation: ['Start consultation, see a doctor, checkup, or begin triage'],
+      consult_doctor: ['Consult doctor, speak to a physician, or doctor consultation'],
+      triage: ['Medical triage, symptoms evaluation, or preliminary health check'],
+      get_started: ['Get started, begin medical process, or open portal'],
       book_appointment: ['Book, arrange, schedule, or get a doctor appointment as a patient'],
       bookAppointment: ['Book, arrange, schedule, or get a doctor appointment as a patient'],
       register_new: ['Register a new patient who has no existing login'],
@@ -95,6 +112,138 @@ export default function LandingPage() {
 
     return () => unregisterPage('landing');
   }, [audioPromptManager, navigate, registerPage, unregisterPage, session]);
+
+  // SMART AI TRANSCRIPT LISTENER & DETAIL EXTRACTOR FOR LANDING PAGE
+  // Enables voice filling details directly on landing page and intelligent routing
+  useEffect(() => {
+    setDictationMode(false);
+    const releaseTranscript = setOnTranscript(async (text, recognitionResult = {}) => {
+      if (!text?.trim()) return false;
+
+      const raw = text.toLowerCase().trim();
+
+      // Attempt smart AI entity extraction (patient name, age, phone, gender, symptoms, ABHA, Aadhaar)
+      let extracted = null;
+      try {
+        extracted = await aiCommandEngine.extractRegistrationDetails(
+          text,
+          currentLang || 'en',
+          {
+            activeTab: 'new',
+            recognitionAlternatives: recognitionResult.recognitionAlternatives || [],
+          }
+        );
+      } catch (err) {
+        console.warn('Landing page AI detail extraction failed:', err);
+      }
+
+      // Check if any meaningful patient entity was extracted
+      const hasDetails = extracted && (
+        Boolean(extracted.name) ||
+        Boolean(extracted.age) ||
+        Boolean(extracted.phone) ||
+        Boolean(extracted.gender) ||
+        Boolean(extracted.abhaId) ||
+        Boolean(extracted.aadhaar) ||
+        Boolean(extracted.symptoms) ||
+        (Array.isArray(extracted.symptomList) && extracted.symptomList.length > 0)
+      );
+
+      if (hasDetails) {
+        let targetTab = 'new';
+        if (extracted.abhaId) targetTab = 'abha';
+        else if (extracted.aadhaar) targetTab = 'aadhaar';
+
+        const statePayload = {
+          activeTab: targetTab,
+          formData: {
+            name: extracted.name || '',
+            age: extracted.age || '',
+            gender: extracted.gender || '',
+            phone: extracted.phone || '',
+          },
+          name: extracted.name || '',
+          age: extracted.age || '',
+          gender: extracted.gender || '',
+          phone: extracted.phone || '',
+          abhaId: extracted.abhaId || '',
+          aadhaar: extracted.aadhaar || '',
+          symptoms: extracted.symptoms || '',
+          symptomList: extracted.symptomList || [],
+          doctor: extracted.doctor || '',
+          department: extracted.department || '',
+          date: extracted.date || '',
+          time: extracted.time || '',
+        };
+
+        // Confirmation speech
+        let confirmMsg = extracted.confirmationMessage;
+        if (!confirmMsg) {
+          if (currentLang === 'hi') {
+            confirmMsg = `${extracted.name ? extracted.name + ' का ' : ''}विवरण प्राप्त हुआ। पंजीकरण में ले जाया जा रहा है...`;
+          } else if (currentLang === 'ta') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ' : ''}விவரங்கள் பெறப்பட்டன. பதிவுக்கு செல்கிறது...`;
+          } else if (currentLang === 'te') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ' : ''}వివరాలు స్వీకరించబడ్డాయి. నమోదుకు వెళ్తున్నారు...`;
+          } else if (currentLang === 'mr') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ची ' : ''}माहिती नोंदवली. नोंदणीकडे जात आहे...`;
+          } else if (currentLang === 'bn') {
+            confirmMsg = `${extracted.name ? extracted.name + ' এর ' : ''}তথ্য নেওয়া হয়েছে। নিবন্ধনে নিয়ে যাওয়া হচ্ছে...`;
+          } else if (currentLang === 'gu') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ની ' : ''}વિગતો મળી. નોંધણી તરફ જઈ રહ્યા છીએ...`;
+          } else if (currentLang === 'kn') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ' : ''}ವಿವರಗಳನ್ನು ಪಡೆಯಲಾಗಿದೆ. ನೋಂದಣಿಗೆ ಹೋಗಲಾಗುತ್ತಿದೆ...`;
+          } else if (currentLang === 'ml') {
+            confirmMsg = `${extracted.name ? extracted.name + ' ' : ''}വിവരങ്ങൾ രേഖപ്പെടുത്തി. രജിസ്ട്രേഷനിലേക്ക് പോകുന്നു...`;
+          } else {
+            confirmMsg = `Details noted${extracted.name ? ' for ' + extracted.name : ''}. Proceeding to registration...`;
+          }
+        }
+
+        speak?.(confirmMsg, currentLang);
+        navigate('/auth?role=patient', { state: statePayload });
+        return true;
+      }
+
+      // If specific actions were requested in the text
+      if (extracted?.requestedAction === 'use_abha') {
+        navigate('/auth?role=patient', { state: { activeTab: 'abha' } });
+        return true;
+      }
+      if (extracted?.requestedAction === 'use_aadhaar') {
+        navigate('/auth?role=patient', { state: { activeTab: 'aadhaar' } });
+        return true;
+      }
+      if (extracted?.requestedAction === 'new_patient' || extracted?.requestedAction === 'register') {
+        navigate('/auth?role=patient', { state: { activeTab: 'new' } });
+        return true;
+      }
+
+      // Check conversational navigation phrases
+      if (/\b(?:consult|consultation|triage|checkup|start|begin|chalo|shuru|get started|enter)\b/i.test(raw)) {
+        handleStartSession();
+        return true;
+      }
+      if (/\b(?:book|appointment|dikhana|doctor|specialist)\b/i.test(raw)) {
+        handleBookAppointment();
+        return true;
+      }
+      if (/\b(?:scan|prescription|parcha|report|upload)\b/i.test(raw)) {
+        navigate('/scan');
+        return true;
+      }
+      if (/\b(?:language|bhasha|boli)\b/i.test(raw)) {
+        navigate('/language');
+        return true;
+      }
+
+      return false;
+    });
+
+    return () => {
+      releaseTranscript();
+    };
+  }, [currentLang, navigate, setOnTranscript, setDictationMode, speak, handleStartSession, handleBookAppointment]);
 
   return (
     <div className="landing-page" style={{ background: 'transparent' }}>
@@ -134,6 +283,8 @@ export default function LandingPage() {
           <div className="animate-fade-in-up" style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', justifyContent: 'center', animationDelay: '0.2s' }}>
             <button
               className="btn btn-primary btn-xl"
+              data-voice-action="start_session"
+              data-voice-label="Start Session"
               onClick={handleStartSession}
               style={{ fontSize: '1.2rem', padding: '20px 48px', borderRadius: '14px', boxShadow: '0 20px 40px rgba(13,148,136,0.3)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', background: 'linear-gradient(135deg, var(--teal-500) 0%, var(--teal-700) 100%)' }}
               onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 25px 50px rgba(13,148,136,0.4)'; }}
@@ -323,7 +474,7 @@ export default function LandingPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '2.5rem' }}>
 
             {/* Patient Portal */}
-            <div onClick={() => {
+            <div data-voice-action="login_patient" data-voice-label="Patient Portal" onClick={() => {
               if (session.isAuthenticated && session.userRole === 'patient') {
                 navigate('/patient-dashboard');
               } else {
@@ -343,7 +494,7 @@ export default function LandingPage() {
             </div>
 
             {/* Doctor Portal */}
-            <div onClick={() => {
+            <div data-voice-action="login_doctor" data-voice-label="Doctor Portal" onClick={() => {
               if (session.isAuthenticated && session.userRole === 'doctor') {
                 navigate('/physician');
               } else {
@@ -363,7 +514,7 @@ export default function LandingPage() {
             </div>
 
             {/* Admin Portal */}
-            <div onClick={() => {
+            <div data-voice-action="login_admin" data-voice-label="Admin Portal" onClick={() => {
               if (session.isAuthenticated && session.userRole === 'admin') {
                 navigate('/admin-dashboard');
               } else {

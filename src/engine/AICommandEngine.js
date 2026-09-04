@@ -175,20 +175,68 @@ class AICommandEngine {
           }
         }
 
-        this._cache.set(cacheKey, result);
-        if (this._cache.size > 150) {
-          const firstKey = this._cache.keys().next().value;
-          this._cache.delete(firstKey);
+        if (result.intent !== 'out_of_context') {
+          this._cache.set(cacheKey, result);
+          if (this._cache.size > 150) {
+            const firstKey = this._cache.keys().next().value;
+            this._cache.delete(firstKey);
+          }
+          return result;
         }
-        return result;
+      }
+
+      // 2. Direct Gemini AI Intelligence (Browser Client-side fallback)
+      // When Supabase edge function is unavailable, slow, or returned out_of_context,
+      // direct Gemini dynamically understands conversational speech in all 9 Indian languages.
+      const directGeminiResult = await this._understandWithGeminiDirect({
+        transcript,
+        language,
+        pageId: page,
+        actions,
+        routes: routes.map(r => ({ id: r.id, description: r.description })),
+        expectsFreeText: Boolean(expectsFreeText),
+        recognitionAlternatives: safeAlternatives,
+      });
+
+      if (directGeminiResult && directGeminiResult.intent && directGeminiResult.intent !== 'out_of_context') {
+        if (directGeminiResult.intent === 'free_text' && !expectsFreeText) {
+          const raw = transcript.toLowerCase();
+          if (/\b(?:book appointment|appointment book|doctor appointment|take appointment|schedule appointment|appointment lena|appointment chahiye|doctor dikhana)\b/i.test(raw)) {
+            directGeminiResult.intent = 'bookAppointment';
+          } else {
+            directGeminiResult.intent = 'out_of_context';
+          }
+        }
+
+        if (directGeminiResult.intent !== 'out_of_context') {
+          this._cache.set(cacheKey, directGeminiResult);
+          return directGeminiResult;
+        }
       }
     } catch (e) {
-      console.warn("Cloud AI intent understanding unavailable, using smart multilingual engine fallback:", e);
+      console.warn("Cloud AI intent understanding notice, trying direct Gemini fallback:", e);
+      try {
+        const directGeminiResult = await this._understandWithGeminiDirect({
+          transcript,
+          language,
+          pageId: page,
+          actions: Object.entries({ ...globalCommands, ...availableCommands }).map(([intent, desc]) => ({ intent, description: String(desc || intent) })),
+          routes: routes.map(r => ({ id: r.id, description: r.description })),
+          expectsFreeText: Boolean(expectsFreeText),
+          recognitionAlternatives: safeAlternatives,
+        });
+        if (directGeminiResult && directGeminiResult.intent && directGeminiResult.intent !== 'out_of_context') {
+          this._cache.set(cacheKey, directGeminiResult);
+          return directGeminiResult;
+        }
+      } catch (geminiErr) {
+        console.warn("Direct Gemini parsing notice:", geminiErr);
+      }
     }
 
     if (expectsFreeText) return { intent: 'free_text', confidence: 1, value: transcript };
 
-    // 2. Multilingual Semantic Fallback (Handles all 9 Indian languages offline)
+    // 3. Multilingual Semantic Fallback (Handles all 9 Indian languages offline)
     const fallbackResult = this._multilingualFallbackIntent(transcript, availableCommands, globalCommands, ctx);
     if (fallbackResult) {
       this._cache.set(cacheKey, fallbackResult);
@@ -310,6 +358,135 @@ class AICommandEngine {
     if (/\b(?:back|peeche|piche|wapas|pinnadi|venakki|hinde|pirakil)\b/i.test(raw)) return { intent: 'back', confidence: 0.95, message: 'Going back.' };
     if (/\b(?:next|aage|muthal|mundhu|porer|pudhe|aagal|munde|aduthathu|continue)\b/i.test(raw)) return { intent: 'next', confidence: 0.95, message: 'Continuing.' };
 
+    return null;
+  }
+
+  /**
+   * Direct Gemini AI intent understanding running client-side.
+   * Understands natural human speech in all 9 Indian languages without rigid regexes.
+   * Dynamically evaluates all on-screen DOM buttons, cards, routes, and entities.
+   */
+  async _understandWithGeminiDirect({ transcript, language = 'auto', pageId = 'landing', actions = [], routes = [], expectsFreeText = false, recognitionAlternatives = [] }) {
+    const apiKey = import.meta?.env?.VITE_GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    const safeActions = actions.slice(0, 100).map(a => ({
+      intent: a.intent,
+      description: String(a.description || a.intent).slice(0, 150)
+    }));
+
+    const safeRoutes = routes.slice(0, 30).map(r => ({
+      id: r.id,
+      description: String(r.description || r.id).slice(0, 120)
+    }));
+
+    const prompt = `You are the primary AI Voice Navigation and Medical Intelligence engine for Swasthya Setu, an Indian healthcare kiosk and web portal.
+The user speaks naturally in ANY of 9 Indian languages (Hindi, Tamil, Telugu, Marathi, Bengali, Gujarati, Kannada, Malayalam, English, Hinglish, or regional dialects).
+NEVER require exact keywords or hardcoded phrases. Understand the user's intent deeply regardless of phrasing, grammar, or dialect.
+
+CONTEXT:
+- Current Page: "${pageId}"
+- Language: "${language}"
+- Form expects free text: ${Boolean(expectsFreeText)}
+
+AVAILABLE ON-SCREEN CONTROLS & ACTIONS:
+${JSON.stringify(safeActions)}
+
+NAVIGABLE ROUTES:
+${JSON.stringify(safeRoutes)}
+
+USER SPOKEN SPEECH:
+"${transcript}"
+${recognitionAlternatives.length ? `Alternatives: ${JSON.stringify(recognitionAlternatives)}` : ''}
+
+INTENT MAPPING & RESOLUTION RULES:
+1. DYNAMIC CONTROLS & NEW BUTTONS:
+   - If the user wants to click or activate a button, link, card, or tab visible on screen (e.g., "Add Doctor", "Doctor Profile", "Next", "Confirm", "Join Group", "+ Community", "Cardiology", or any newly added feature), MATCH it to the corresponding "activate_X" intent or action from the AVAILABLE CONTROLS list!
+   - Return intent = matching intent (e.g. "activate_3" or action name), and set target/value to the control label.
+2. DOCTORS & APPOINTMENT BOOKING:
+   - If user asks to consult/see a doctor, book an appointment, search doctor/specialty, or describes illness to see a doctor:
+     - Specific doctor named (e.g. "Dr. Rajesh Sharma"): intent = "select_doctor", target = doctor's name.
+     - Doctor profile / info requested: intent = "view_doctor_profile", target = doctor's name.
+     - Specific appointment date mentioned (e.g. "tomorrow", "kal", "Monday", date): intent = "select_date", value = date.
+     - Specific time slot mentioned (e.g. "10:00 AM", "10 baje", "morning"): intent = "select_time", value = time.
+     - General appointment booking: intent = "bookAppointment".
+3. COMMUNITIES & PATIENT SUPPORT GROUPS:
+   - If user asks to view/open patient communities, support groups, or a specific condition circle (e.g. "Diabetes group", "Cancer community", "Heart health"):
+     - If specific condition/community named: intent = "select_community", target = community name or topic.
+     - General communities: intent = "viewCommunities".
+4. MEDICAL RECORDS, LAB REPORTS & PRESCRIPTIONS:
+   - Scan or upload prescription/document: intent = "scan_document".
+   - View lab reports / test results: intent = "viewReports".
+   - View past medical history / visits: intent = "viewHistory".
+   - View upcoming scheduled appointments: intent = "viewAppointments".
+5. AYUSH / AYURVEDA:
+   - Switch to Ayush / Ayurveda / Homeopathy: intent = "toggleAyush".
+6. PROFILE & ABHA HEALTH ID:
+   - Show ABHA card / digital health card: intent = "showAbhaCard".
+   - View user profile / account: intent = "viewProfile".
+7. EMERGENCY:
+   - Urgent medical help, emergency, ambulance, 108: intent = "emergency".
+8. LANGUAGE SWITCHING:
+   - Change or speak in language: intent = "set_language_<code\>" (hi, ta, te, bn, mr, gu, kn, ml, en).
+9. CONTROLS & NAVIGATION:
+   - Standard controls: 'home', 'back', 'next', 'confirm', 'skip', 'scrollDown', 'scrollUp'.
+   - Route navigation: intent = "navigate_to", target = route id.
+10. FORM INPUT / FREE TEXT:
+    - If user is providing personal details (name, age, phone) or clinical symptoms in response to a form question: intent = "free_text", value = transcript.
+11. OUT OF CONTEXT:
+    - Return intent = "out_of_context" ONLY if speech is completely unrelated noise, television, or nonsense.
+
+CONFIRMATION MESSAGE:
+Provide a concise, courteous confirmation message in the user's spoken language acknowledging what was done (e.g., in Hindi: "डॉक्टर अपॉइंटमेंट खोला जा रहा है।", in Tamil: "மருத்துவர் சந்திப்பு திறக்கப்படுகிறது.", in English: "Navigating to doctor appointment.").
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "intent": string,
+  "target": string or null,
+  "value": string or null,
+  "confidence": number,
+  "message": string
+}`;
+
+    const models = ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+    for (const modelName of models) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.1,
+              maxOutputTokens: 350
+            }
+          })
+        });
+
+        if (!response.ok) {
+          console.warn(`Gemini direct ${modelName} returned status ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        let rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        rawJson = rawJson.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+        const parsed = JSON.parse(rawJson);
+
+        if (parsed && parsed.intent) {
+          return {
+            intent: parsed.intent,
+            target: parsed.target || null,
+            value: parsed.value || (parsed.intent === 'free_text' ? transcript : null),
+            confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.95,
+            message: parsed.message || null
+          };
+        }
+      } catch (err) {
+        console.warn(`Gemini direct ${modelName} error:`, err);
+      }
+    }
     return null;
   }
 

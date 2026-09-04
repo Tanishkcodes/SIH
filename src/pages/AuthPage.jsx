@@ -58,17 +58,42 @@ export default function AuthPage() {
   // Loading state
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Incoming state from landing page or voice navigation
+  const incomingState = location.state || {};
+
   // Patient states
-  const [activeTab, setActiveTab] = useState('new'); // 'abha', 'aadhaar', 'new'
-  const [abhaId, setAbhaId] = useState('');
-  const [aadhaar, setAadhaar] = useState('');
+  const [activeTab, setActiveTab] = useState(incomingState.activeTab || 'new'); // 'abha', 'aadhaar', 'new'
+  const [abhaId, setAbhaId] = useState(incomingState.abhaId || '');
+  const [aadhaar, setAadhaar] = useState(incomingState.aadhaar || '');
   const [showScanner, setShowScanner] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    age: '',
-    gender: '',
-    phone: ''
+    name: incomingState.formData?.name || incomingState.name || '',
+    age: incomingState.formData?.age || incomingState.age || '',
+    gender: normalizeGender(incomingState.formData?.gender || incomingState.gender || '', t) || '',
+    phone: incomingState.formData?.phone || incomingState.phone || ''
   });
+
+  // Sync state if location.state changes or arrives dynamically
+  useEffect(() => {
+    if (!location.state) return;
+    const s = location.state;
+    if (s.activeTab) setActiveTab(s.activeTab);
+    if (s.abhaId) setAbhaId(s.abhaId);
+    if (s.aadhaar) setAadhaar(s.aadhaar);
+    const newName = s.formData?.name || s.name;
+    const newAge = s.formData?.age || s.age;
+    const newGender = s.formData?.gender || s.gender;
+    const newPhone = s.formData?.phone || s.phone;
+    if (newName || newAge || newGender || newPhone) {
+      setFormData(prev => ({
+        ...prev,
+        ...(newName ? { name: newName } : {}),
+        ...(newAge ? { age: newAge } : {}),
+        ...(newGender ? { gender: normalizeGender(newGender, t) } : {}),
+        ...(newPhone ? { phone: newPhone } : {}),
+      }));
+    }
+  }, [location.state, t]);
 
   // Staff states
   const [staffUsername, setStaffUsername] = useState('');
@@ -128,8 +153,9 @@ export default function AuthPage() {
   // Store latest action in ref
   const handleNextRef = useRef();
 
-  // 1. Command Registration
+  // 1. Command Registration (PATIENT PORTAL ONLY)
   useEffect(() => {
+    if (isStaff) return;
     registerPage('auth', {
       next: () => handleNextRef.current?.(),
       back: () => navigate('/'),
@@ -151,13 +177,18 @@ export default function AuthPage() {
     return () => {
       unregisterPage('auth');
     };
-  }, [navigate, registerPage, unregisterPage, role, currentLang]);
+  }, [isStaff, navigate, registerPage, unregisterPage, role, currentLang]);
 
-  // 2. Audio Welcome Management
+  // 2. Audio Welcome Management (PATIENTS ONLY — Staff portals must remain completely silent)
   useEffect(() => {
+    if (isStaff) {
+      audioFeedback.stop();
+      audioPromptManager.stop();
+      return;
+    }
     audioPromptManager.setCurrentPage('auth');
     const authWelcomeTimer = setTimeout(() => {
-      const prompt = role === 'patient' ? authTabPrompt(currentLang, activeTab) : t(role === 'doctor' ? 'doctorPortal' : 'adminPortal');
+      const prompt = authTabPrompt(currentLang, activeTab);
       speak(prompt, currentLang);
     }, 350);
 
@@ -166,7 +197,7 @@ export default function AuthPage() {
       audioFeedback.stop();
       audioPromptManager.setCurrentPage(null);
     };
-  }, [role, activeTab, currentLang, speak]);
+  }, [role, isStaff, activeTab, currentLang, speak]);
 
   const handleNext = async () => {
     if (isLoggingIn) return;
@@ -278,6 +309,7 @@ export default function AuthPage() {
   // GLOBAL VOICE ORB & FIELD TRANSCRIPT REGISTRATION (AI-POWERED)
   // ----------------------------
   useEffect(() => {
+    if (isStaff) return;
     setDictationMode(false);
     const releaseTranscript = setOnTranscript(async (text, recognitionResult = {}) => {
       if (!text?.trim()) return;
@@ -402,7 +434,7 @@ export default function AuthPage() {
       setDictationMode(false);
       releaseTranscript();
     };
-  }, [activeTab, language, currentLang, setOnTranscript, clearOnTranscript, setDictationMode, t, speak, navigate, formData.name, formData.age, formData.gender, formData.phone, abhaId, aadhaar]);
+  }, [isStaff, activeTab, language, currentLang, setOnTranscript, clearOnTranscript, setDictationMode, t, speak, navigate, formData.name, formData.age, formData.gender, formData.phone, abhaId, aadhaar]);
 
   // Direct test hook to verify speech transcript auto-fill pipeline via URL query
   useEffect(() => {

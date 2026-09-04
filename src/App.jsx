@@ -50,18 +50,29 @@ import { useLanguage } from './context/LanguageContext';
 // Scroll to top and stop audio on route change
 function RouteChangeListener() {
   const { pathname, search } = useLocation();
-  const voiceEnabled = pathname !== '/physician' && pathname !== '/admin-dashboard';
+  const path = (pathname || '').toLowerCase();
+  const s = (search || '').toLowerCase();
+  const isDoctorOrAdmin = path.includes('/physician') ||
+                          path.includes('/admin') ||
+                          s.includes('role=doctor') ||
+                          s.includes('role=admin');
+  const voiceEnabled = !isDoctorOrAdmin;
 
   useEffect(() => {
     window.scrollTo(0, 0);
     // Stop any ongoing voice agent speech or prompts when navigating away
     audioFeedback.stop();
     audioPromptManager.stop();
+    if (!voiceEnabled) return;
+
     const pageId = pathname === '/' ? 'landing' : pathname.replace(/^\//, '').replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
     audioPromptManager.setCurrentPage(pageId);
 
     // Trigger instant DOM re-scan for dynamic language translation on route change
     domTranslator.triggerFullScan();
+    if (pageId === 'landing') {
+      audioPromptManager.speakInitialLandingWelcome(true);
+    }
     const timer = setTimeout(() => {
       domTranslator.triggerFullScan();
       if (!voiceEnabled) return;
@@ -75,12 +86,21 @@ function RouteChangeListener() {
 }
 
 function GlobalVoiceHandler() {
+  const { pathname, search } = useLocation();
+  const path = (pathname || '').toLowerCase();
+  const s = (search || '').toLowerCase();
+  const isDoctorOrAdmin = path.includes('/physician') ||
+                          path.includes('/admin') ||
+                          s.includes('role=doctor') ||
+                          s.includes('role=admin');
+
   const { registerGlobalHandlers } = useVoiceNav();
   const { setCurrentLang } = useLanguage();
   const { logout, session } = useSession();
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (isDoctorOrAdmin) return;
     commandParser.setRoutes(VOICE_ROUTES.map(({ id, description }) => ({ id, description })));
     registerGlobalHandlers({
       // ── Scroll ────────────────────────────────────────────────────────────
@@ -166,22 +186,26 @@ function GlobalVoiceHandler() {
       back: ['Go back to previous page or step'],
       select_language: ['Choose or change application language'],
     });
-  }, [registerGlobalHandlers, navigate, setCurrentLang, logout, session?.isAuthenticated, session?.userRole]);
+  }, [isDoctorOrAdmin, registerGlobalHandlers, navigate, setCurrentLang, logout, session?.isAuthenticated, session?.userRole]);
 
   return null;
 }
 
 function Layout({ children, showHeader = true }) {
   const { pathname, search } = useLocation();
-  const authRole = new URLSearchParams(search).get('role');
-  const showVoiceIndicator = true;
+  const path = (pathname || '').toLowerCase();
+  const s = (search || '').toLowerCase();
+  const isDoctorOrAdmin = path.includes('/physician') ||
+                          path.includes('/admin') ||
+                          s.includes('role=doctor') ||
+                          s.includes('role=admin');
 
   return (
     <>
-      <GlobalVoiceHandler />
+      {!isDoctorOrAdmin && <GlobalVoiceHandler />}
       {showHeader && <Header />}
       <main className="app-main flex-grow">{children}</main>
-      {showVoiceIndicator && <VoiceNavIndicator />}
+      {!isDoctorOrAdmin && <VoiceNavIndicator />}
     </>
   );
 }
@@ -228,7 +252,6 @@ function App() {
         <LanguageProvider>
           <VoiceNavProvider>
             <RouteChangeListener />
-            <GlobalVoiceHandler />
             <Routes>
               <Route path="/" element={<Layout><LandingPage /></Layout>} />
               <Route path="/auth" element={<Layout><AuthPage /></Layout>} />

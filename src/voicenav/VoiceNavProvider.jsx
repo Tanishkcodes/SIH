@@ -9,7 +9,7 @@ import { TranscriptRegistry } from './TranscriptRegistry';
 
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import commandParser from './CommandParser';
-import audioFeedback from './AudioFeedback';
+import audioFeedback, { isMutedPortal } from './AudioFeedback';
 import audioPromptManager from './AudioPromptManager';
 import { getLanguageInfo } from './LanguagePack';
 import { db } from '../lib/db';
@@ -239,6 +239,7 @@ export function VoiceNavProvider({ children }) {
 
   // Handle voice input — parse and dispatch
   const handleVoiceInput = useCallback(async (text, recognitionAlternatives = []) => {
+    if (isMutedPortal()) return;
     setMicState('processing');
     const invoke = async (handler, result) => {
       try { return (await handler(result)) !== false; }
@@ -345,21 +346,42 @@ export function VoiceNavProvider({ children }) {
         handled = await invoke(commandHandlersRef.current['__global__'][result.intent] || commandHandlersRef.current['__global__'][resolvedIntent], result);
       }
 
-      // 3. AI DOM activation with SMART text-label matching (not just index)
+      // 3. AI DOM activation with direct index
       if (!handled && /^activate_\d+$/.test(result.intent)) {
         const idx = Number(result.intent.slice(9));
         const target = domElements[idx];
-        if (target?.isConnected && !target.disabled && target.getClientRects().length) { target.click(); handled = true; }
+        if (target?.isConnected && !target.disabled && target.getClientRects().length) {
+          target.click();
+          handled = true;
+        }
       }
 
-      // 4. Semantic DOM label search — try to find a visible button matching the raw transcript
-      if (!handled && result.intent === 'activate_label') {
-        const label = (result.value || text || '').toLowerCase();
-        const matchedEl = domElements.find(el => {
-          const elText = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
-          return elText.includes(label) || label.includes(elText.slice(0, 10));
-        });
-        if (matchedEl) { matchedEl.click(); handled = true; }
+      // 4. Semantic DOM control search — match any visible button/link/tab by target, value, intent, or spoken text
+      if (!handled) {
+        const searchCandidates = [
+          result.target,
+          result.value,
+          result.intent && !result.intent.startsWith('activate_') ? result.intent.replace(/_/g, ' ') : null,
+          text
+        ].filter(Boolean).map(s => String(s).toLowerCase().trim());
+
+        for (const query of searchCandidates) {
+          if (!query || query.length < 2) continue;
+          const matchedEl = domElements.find(el => {
+            const elText = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || el.value || '')
+              .toLowerCase().replace(/\s+/g, ' ').trim();
+            if (!elText) return false;
+            return elText === query ||
+                   elText.includes(query) ||
+                   query.includes(elText) ||
+                   (query.length >= 4 && elText.slice(0, 12).includes(query.slice(0, 8)));
+          });
+          if (matchedEl && matchedEl.isConnected && !matchedEl.disabled && matchedEl.getClientRects().length) {
+            matchedEl.click();
+            handled = true;
+            break;
+          }
+        }
       }
       
       // 5. Built-in handlers for common actions that work on every page
@@ -469,7 +491,7 @@ export function VoiceNavProvider({ children }) {
 
   // Start listening
   const startListening = useCallback((continuous = true) => {
-    if (!isSpeechSupported || !recognitionRef.current || !isVoiceEnabled) return;
+    if (!isSpeechSupported || !recognitionRef.current || !isVoiceEnabled || isMutedPortal()) return;
 
     // Stop any current speech
     audioPromptManager.stop();
@@ -521,6 +543,7 @@ export function VoiceNavProvider({ children }) {
 
   // Toggle listening
   const toggleListening = useCallback(() => {
+    if (isMutedPortal()) return;
     if (isSpeaking || audioFeedback.isSpeaking) {
       audioPromptManager.stop();
       startListening(true);
@@ -539,6 +562,7 @@ export function VoiceNavProvider({ children }) {
 
   // Speak text
   const speak = useCallback(async (text, lang = null) => {
+    if (isMutedPortal()) return;
     // Stop listening while speaking
     if (isListeningRef.current) {
       stopListening();

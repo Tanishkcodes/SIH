@@ -5,12 +5,15 @@ import voiceAIService from './VoiceAIService';
    TTS synthesis + sound effects via Web Audio API
    ============================================ */
 
-function isMutedPortal() {
+export function isMutedPortal() {
   if (typeof window === 'undefined') return false;
-  const path = window.location.pathname.toLowerCase();
+  const path = (window.location.pathname || '').toLowerCase();
+  const search = (window.location.search || '').toLowerCase();
   return path.includes('/physician') || 
          path.includes('/doctor') || 
-         path.includes('/admin');
+         path.includes('/admin') ||
+         search.includes('role=doctor') ||
+         search.includes('role=admin');
 }
 
 class AudioFeedbackEngine {
@@ -106,36 +109,51 @@ class AudioFeedbackEngine {
     return cleaned;
   }
 
-  async playWelcomeAudio(audioUrl = '/welcome_hi.mp3', fallbackUrl = '/welcome_sarah.mp3') {
+  async playWelcomeAudio(audioUrl = '/welcome-hi.mp3', fallbackUrl = '/welcome_hi.mp3') {
     if (isMutedPortal()) return false;
     this.stop();
-    const id = this.activePlaybackId;
+    const id = ++this.activePlaybackId;
     this.isSpeaking = true;
     this.onSpeakingChange?.(true);
     return new Promise(resolve => {
       let loadTimer;
       let attempt = 0;
-      this.currentResolve = success => { clearTimeout(loadTimer); resolve(success); };
+      let settled = false;
+
       const finish = success => {
-        if (id !== this.activePlaybackId) return;
+        if (settled) return;
+        settled = true;
         clearTimeout(loadTimer);
         this.currentResolve = null;
-        this.stop();
+        if (id === this.activePlaybackId) {
+          this.isSpeaking = false;
+          this.onSpeakingChange?.(false);
+          if (this.elevenLabsAudio) {
+            try { this.elevenLabsAudio.pause(); } catch (e) {}
+            this.elevenLabsAudio = null;
+          }
+        }
         resolve(success);
       };
+
+      this.currentResolve = finish;
+
       const play = (url, canFallback) => {
-        if (id !== this.activePlaybackId) return;
+        if (settled || id !== this.activePlaybackId) return;
         const currentAttempt = ++attempt;
         const audio = new Audio(url);
+        audio.preload = 'auto';
         this.elevenLabsAudio = audio;
+
         const failed = () => {
-          if (id !== this.activePlaybackId || currentAttempt !== attempt) return;
+          if (settled || id !== this.activePlaybackId || currentAttempt !== attempt) return;
           clearTimeout(loadTimer);
           ++attempt;
-          audio.pause();
+          try { audio.pause(); } catch (e) {}
           if (canFallback && fallbackUrl && fallbackUrl !== url) play(fallbackUrl, false);
           else finish(false);
         };
+
         audio.onended = () => {
           if (currentAttempt === attempt) finish(true);
         };
@@ -144,12 +162,21 @@ class AudioFeedbackEngine {
         };
         audio.onerror = failed;
         loadTimer = setTimeout(failed, 8000);
-        audio.play().catch(error => {
-          if (id !== this.activePlaybackId || currentAttempt !== attempt) return;
-          // Autoplay denial retries the original recording on the next user gesture.
-          if (error.name === 'NotAllowedError') finish(false);
-          else failed();
-        });
+
+        try {
+          const p = audio.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              if (currentAttempt === attempt) clearTimeout(loadTimer);
+            }).catch(error => {
+              if (settled || id !== this.activePlaybackId || currentAttempt !== attempt) return;
+              if (error.name === 'NotAllowedError') finish(false);
+              else failed();
+            });
+          }
+        } catch (e) {
+          failed();
+        }
       };
       play(audioUrl, true);
     });
@@ -245,6 +272,7 @@ class AudioFeedbackEngine {
 
   // Play a success chime (two ascending tones)
   playSuccess() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
@@ -276,6 +304,7 @@ class AudioFeedbackEngine {
 
   // Play an error tone (descending)
   playError() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
@@ -295,6 +324,7 @@ class AudioFeedbackEngine {
 
   // Play a gentle notification ping
   playNotification() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
@@ -313,6 +343,7 @@ class AudioFeedbackEngine {
 
   // Play listening indicator (subtle blip)
   playListeningStart() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
@@ -332,6 +363,7 @@ class AudioFeedbackEngine {
 
   // Play urgent alarm (for red flags)
   playAlarm() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
@@ -352,6 +384,7 @@ class AudioFeedbackEngine {
 
   // Play processing/thinking sound (subtle bubbles)
   playProcessing() {
+    if (isMutedPortal()) return;
     try {
       const ctx = this._getAudioContext();
       const now = ctx.currentTime;
