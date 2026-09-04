@@ -1,7 +1,8 @@
-import voiceAIService from '../voicenav/VoiceAIService';
+import voiceAIService from '../voicenav/VoiceAIService.js';
 
 const MULTILINGUAL_ACTION_DESCRIPTIONS = {
   bookAppointment: 'Book doctor appointment, consult doctor, physician, see specialist, OPD booking, hospital visit, checkup, feeling sick, fever, illness, pain, headache, cough, cold, emergency doctor, bukhar, dard, ilaj, bimar, chikitsak, vaidya, டாக்டர், மருத்துவர், மருத்துவரை பார்க்க, వైద్యుడు, డాక్టర్, ডাক্তার, ವೈದ್ಯರು, ഡോക്ടർ, તબીબ, डॉक्टर',
+  select_date: 'Select appointment date, choose date, change date, tomorrow, today, kal, aaj, parso, day after tomorrow, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, somwar, mangalwar, budhwar, guruwar, shukrawar, shaniwar, ravivar, date tile 1 2 3 4 5 6 7, तारीख, दिनांक, कल, आज, தேதி, ದಿನಾಂಕ, ತೀಯತಿ, તારીખ',
   view_doctor_profile: 'View doctor profile, doctor details, doctor info, about doctor, physician bio, doctor qualification, experience, timings, reviews, डॉक्टर प्रोफाइल, डॉक्टर की जानकारी, மருத்துவர் சுயவிவரம், డాక్టర్ ప్రొఫైల్, ডাক্তার প্রোফাইল',
   select_community: 'Open specific patient community or support group, diabetes community, cardiac community, cancer group, mental health community, maternal child care, ayush wellness, respiratory asthma group, senior citizen community, caregiver group, blood disorders, मधुमेह समुदाय, கேன்சர் குழு, డయాబెటిస్ గ్రూప్',
   login_patient: 'Patient login, sign in, open patient portal, patient account, register patient, मरीज़ लॉगिन, நோயாளி உள்நுழைவு, రోగి లాగిన్',
@@ -164,11 +165,13 @@ class AICommandEngine {
 
       if (result && result.intent && result.intent !== 'out_of_context') {
         // If Gemini returned free_text on a page that is NOT expecting form text,
-        // check if user was describing symptoms/illness -> map to doctor appointment!
+        // only map to doctor appointment if user explicitly requested booking
         if (result.intent === 'free_text' && !expectsFreeText) {
           const raw = transcript.toLowerCase();
-          if (/\b(?:doctor|daktar|fever|dard|pain|bukhar|bimar|cough|cold|headache|stomach|chikitsak|vaidya|மருத்துவர்|நோயாளி|డాక్టర్|వ్యాధి|వైద్యులు|രോഗം|അസുഖം)\b/i.test(raw)) {
+          if (/\b(?:book appointment|appointment book|doctor appointment|take appointment|schedule appointment|appointment lena|appointment chahiye|doctor dikhana)\b/i.test(raw)) {
             result.intent = 'bookAppointment';
+          } else {
+            result.intent = 'out_of_context';
           }
         }
 
@@ -230,9 +233,21 @@ class AICommandEngine {
       return { intent: 'view_doctor_profile', confidence: 0.96, value: doctorName || raw, target: doctorName || null, message: 'Opening doctor profile.' };
     }
 
-    // 3. Doctor & Appointment (all 9 languages + Hinglish)
+    // 2c. Select Date / Change Appointment Date (must precede general booking)
     if (
-      /\b(?:doctor|daktar|chikitsak|vaidya|vaidyudu|maruthuvar|maruthuvarai|appointment|milna|dikhana|bimar|tabiyat|ilaaj|treatment|santhikka|parkka|kalavali|chupinchu|dekhate|bhetaycha|dakhavaycha|malvu|batavvu|nodabeku|kaananam|consult|checkup|specialist|hospital|cardio|ortho|derma|neuro|fever|dard|pain|headache|bukhar)\b/i.test(raw)
+      /\b(?:select date|choose date|change date|tarikh|dinank|date select|tarikh badlo|tarikh chuno|kal ka appointment|aaj ka appointment)\b/i.test(raw) ||
+      /\b(?:tomorrow|kal|aaj|today|day after tomorrow|parso|parson)\b/i.test(raw) ||
+      /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|somwar|somvar|mangalwar|budhwar|guruwar|shukrawar|shaniwar|ravivar)\b/i.test(raw)
+    ) {
+      return { intent: 'select_date', value: raw, confidence: 0.96, message: 'Selecting appointment date.' };
+    }
+
+    // 3. Doctor & Appointment Booking (requires clear booking intention)
+    if (
+      /\b(?:book appointment|appointment book|doctor appointment|new appointment|consultation book|book doctor|take appointment|schedule appointment)\b/i.test(raw) ||
+      (/\b(?:doctor|daktar|chikitsak|vaidya|maruthuvar|specialist)\b/i.test(raw) && /\b(?:book|appointment|milna|dikhana|mila do|dekhna|consult|visit)\b/i.test(raw)) ||
+      /\b(?:appointment lena|appointment chahiye|appointment banana|appointment fix|doctor chahiye|doctor se milna|doctor ko dikhana)\b/i.test(raw) ||
+      /^(appointment|book|booking|opd booking|अपॉइंटमेंट|अपॉइंटमेंट बुक|சந்திப்பு|ములాఖత్)$/i.test(raw)
     ) {
       return { intent: 'bookAppointment', confidence: 0.92, message: 'Opening doctor appointment.' };
     }

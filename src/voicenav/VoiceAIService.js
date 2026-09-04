@@ -4,10 +4,10 @@
  */
 class VoiceAIService {
   constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pzaqzwmpynlqxsclbesj.supabase.co';
+    const supabaseUrl = import.meta?.env?.VITE_SUPABASE_URL || 'https://pzaqzwmpynlqxsclbesj.supabase.co';
     this.baseUrl = `${supabaseUrl}/functions/v1/voice-ai`;
-    this.publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      || import.meta.env.VITE_SUPABASE_ANON_KEY
+    this.publishableKey = import.meta?.env?.VITE_SUPABASE_PUBLISHABLE_KEY
+      || import.meta?.env?.VITE_SUPABASE_ANON_KEY
       || 'sb_publishable_aQTTcFxLfGPTzEphAE6DWQ_BqHlnDVU';
     this.disabledUntil = 0;
     this.ttsDisabledUntil = 0;

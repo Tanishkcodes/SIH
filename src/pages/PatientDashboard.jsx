@@ -4117,13 +4117,115 @@ export default function PatientDashboard() {
     const doctorContext = (bookingHospital?.doctors?.length ? bookingHospital.doctors : allDoctorsAcrossHospitals).map((doctor, index) => ({ id: doctor.id, name: doctor.name, specialty: doctor.specialty || doctor.speciality, hospital: doctor.hospitalName, number: index + 1 }));
     const communityContext = (dbCommunitiesList || []).map((comm, index) => ({ id: comm.id, title: comm.title, theme: comm.theme_key || comm.disease_key || '', number: index + 1 }));
 
+    const resolveDateFromCommand = (command) => {
+      if (!command) return null;
+      const query = String(command?.value || command?.target || command?.raw || '').toLowerCase().trim();
+      if (!query) return null;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const formatDateStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      // 1. Direct YYYY-MM-DD
+      const isoMatch = query.match(/\b\d{4}-\d{2}-\d{2}\b/);
+      if (isoMatch) return isoMatch[0];
+
+      // 2. Relative keywords
+      if (/\b(?:today|aaj|aaj ka|current|ab|abhi)\b/i.test(query)) {
+        return formatDateStr(today);
+      }
+      if (/\b(?:tomorrow|kal|agla din|next day)\b/i.test(query)) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + 1);
+        return formatDateStr(d);
+      }
+      if (/\b(?:day after tomorrow|parso|parson)\b/i.test(query)) {
+        const d = new Date(today);
+        d.setDate(d.getDate() + 2);
+        return formatDateStr(d);
+      }
+
+      // 3. Option / tile index (1-7)
+      const optionMatch = query.match(/\b(?:option|date|tile|number|no\.?)\s*(\d+)\b/i) || query.match(/^(?:option\s*)?([1-7])$/);
+      if (optionMatch) {
+        const offset = parseInt(optionMatch[1], 10) - 1;
+        if (offset >= 0 && offset < 14) {
+          const d = new Date(today);
+          d.setDate(d.getDate() + offset);
+          return formatDateStr(d);
+        }
+      }
+
+      // 4. Weekdays (English + Indian languages)
+      const weekdays = [
+        { day: 0, re: /\b(?:sunday|ravivar|etwar|adityavar|ஞாயிறு|ఆదివారం|রবিবার|रविवार|રવિવાર|ಭಾನುವಾರ|ഞായർ)\b/i },
+        { day: 1, re: /\b(?:monday|somvar|somwar|திங்கள்|సోమవారం|সোমবার|सोमवार|સોમવાર|ಸೋಮವಾರ|തിങ്കൾ)\b/i },
+        { day: 2, re: /\b(?:tuesday|mangalvar|mangalwar|செவ்வாய்|మంగళవారం|मंगलवार|मंगळवार|મંગળવાર|ಮಂಗಳವಾರ|ചൊവ്വ)\b/i },
+        { day: 3, re: /\b(?:wednesday|budhvar|budhwar|புதன்|బుధవారం|বুধবার|बुधवार|બુધવાર|ಬುಧವಾರ|ಬುಧನ್)\b/i },
+        { day: 4, re: /\b(?:thursday|guruvar|guruwar|brihaspativar|வியாழன்|గురువారం|বৃহস্পতিবার|गुरुवार|ગુરુવાર|ಗುರುವಾರ|വ്യാഴം)\b/i },
+        { day: 5, re: /\b(?:friday|shukravar|shukrawar|jumma|வெள்ளி|శుక్రవారం|शुक्रवार|শুক্রবার|શુક્રવાર|ಶುಕ್ರವಾರ|വെള്ളി)\b/i },
+        { day: 6, re: /\b(?:saturday|shanivar|shaniwar|hafta|சனி|శనివారం|शनिवार|શনিবার|શનિવાર|ಶನಿವಾರ|ശനി)\b/i },
+      ];
+      for (const w of weekdays) {
+        if (w.re.test(query)) {
+          const currentDay = today.getDay();
+          let diff = w.day - currentDay;
+          if (diff <= 0) diff += 7;
+          const d = new Date(today);
+          d.setDate(d.getDate() + diff);
+          return formatDateStr(d);
+        }
+      }
+
+      // 5. Day of month e.g. 5th, 12th, 15 September
+      const dayMatch = query.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s*)?([a-z]+)?\b/i);
+      if (dayMatch) {
+        const dayNum = parseInt(dayMatch[1], 10);
+        if (dayNum >= 1 && dayNum <= 31) {
+          const d = new Date(today);
+          if (dayNum < today.getDate()) {
+            d.setMonth(d.getMonth() + 1);
+          }
+          d.setDate(dayNum);
+          return formatDateStr(d);
+        }
+      }
+
+      return null;
+    };
+
     registerPage('patientDashboard', {
       // ── Main Dashboard Tabs ──
       bookAppointment: command => {
         if (openHospital(command)) return true;
-        openTab('appointments');
-        setShowAllHospitalsModal(true);
-        return true;
+
+        if (bookingFlowView === 'doctor_profile' && selectedDoctorObj) {
+          handleSelectDoctorForBooking(selectedDoctorObj);
+          return true;
+        }
+
+        if (bookingHospital) {
+          openTab('appointments');
+          setBookingFlowView('doctor_select');
+          return true;
+        }
+
+        if (command?.value || command?.target) {
+          if (selectDoctor(command)) return true;
+        }
+
+        // Only open the all-hospitals directory modal if the user explicitly asked to book an appointment or find hospitals
+        const rawText = String(command?.raw || command?.value || '').toLowerCase();
+        const isExplicitBooking = /\b(?:book|appointment|hospital|hospital dhundo|all hospitals|opd)\b/i.test(rawText);
+        if (isExplicitBooking) {
+          openTab('appointments');
+          setShowAllHospitalsModal(true);
+          return true;
+        }
+
+        // Do not open hospital directory on unrecognized speech
+        return false;
       },
       bookHospital: openHospital,
       select_hospital: openHospital,
@@ -4142,19 +4244,57 @@ export default function PatientDashboard() {
       doctor_profile: openDoctorProfile,
       open_doctor_profile: openDoctorProfile,
       select_date: command => {
-        if (bookingFlowView !== 'booking_steps') return false;
-        const date = String(command.value || command.target || '');
+        const date = resolveDateFromCommand(command);
         const today = new Date().toLocaleDateString('en-CA');
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < today || !Number.isFinite(Date.parse(date))) return false;
-        releaseActiveBookingHold();
-        setSelectedBookingDate(date);
-        setBookingStep(1);
-        return true;
+
+        if (bookingFlowView === 'doctor_profile' && selectedDoctorObj) {
+          handleSelectDoctorForBooking(selectedDoctorObj);
+          if (date && date >= today) {
+            releaseActiveBookingHold();
+            setSelectedBookingDate(date);
+          }
+          return true;
+        }
+
+        if (date && date >= today) {
+          releaseActiveBookingHold();
+          setSelectedBookingDate(date);
+          if (bookingFlowView !== 'booking_steps') {
+            setBookingFlowView('booking_steps');
+          }
+          setBookingStep(1);
+          return true;
+        }
+
+        if (bookingFlowView === 'booking_steps') {
+          setBookingStep(1);
+          return true;
+        }
+
+        return false;
       },
       select_time: async command => {
-        if (bookingFlowView !== 'booking_steps' || bookingStep !== 2) return false;
+        if (bookingFlowView !== 'booking_steps') {
+          if (bookingFlowView === 'doctor_profile' && selectedDoctorObj) {
+            handleSelectDoctorForBooking(selectedDoctorObj);
+            setBookingStep(2);
+            return true;
+          }
+          return false;
+        }
+        if (bookingStep === 1) {
+          setBookingStep(2);
+          if (!command?.value) return true;
+        }
+        if (bookingStep !== 2) return false;
         const slots = [...(liveSlots.morning || []), ...(liveSlots.afternoon || []), ...(liveSlots.evening || [])].filter(slot => !slot.isPast && (slot.state === 'open' || slot.state === 'fast'));
-        const slot = slots.find(item => item.time24 === command.value || item.label === command.value);
+        const query = String(command?.value || command?.target || command?.raw || '').toLowerCase().trim();
+        const slot = slots.find(item =>
+          item.time24 === query ||
+          item.label.toLowerCase() === query ||
+          query.includes(item.time24) ||
+          query.includes(item.label.toLowerCase())
+        );
         return slot ? Boolean(await handleSelectSlotWithHold(slot)) : false;
       },
       viewAppointments: () => openTab('appointments'),

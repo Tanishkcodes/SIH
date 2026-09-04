@@ -171,6 +171,18 @@ class CommandParser {
     }
 
     // ──────────────────────────────────────────
+    // 5C. SELECT DATE / APPOINTMENT DATE
+    // ──────────────────────────────────────────
+    if (
+      /\b(?:select date|choose date|change date|tarikh|dinank|date select|tarikh badlo|tarikh chuno|kal ka appointment|aaj ka appointment)\b/i.test(raw) ||
+      /\b(?:tomorrow|kal|aaj|today|day after tomorrow|parso|parson)\b/i.test(raw) ||
+      /^(tomorrow|today|kal|aaj|parso|कल|आज|परसों)$/i.test(raw) ||
+      /\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|somwar|somvar|mangalwar|budhwar|guruwar|shukrawar|shaniwar|ravivar)\b/i.test(raw)
+    ) {
+      return { intent: 'select_date', confidence: 0.98, value: raw };
+    }
+
+    // ──────────────────────────────────────────
     // 6. BOOK APPOINTMENT (before generic appointment check)
     // ──────────────────────────────────────────
     if (
