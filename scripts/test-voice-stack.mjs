@@ -101,7 +101,7 @@ test('stopping during synthesis prevents late playback; successful playback reso
   let finishSynthesis;
   let plays = 0;
   class AudioMock { play() { plays++; return Promise.resolve(); } pause() {} }
-  const sandbox = { Audio: AudioMock, voiceAIService: { synthesize: () => new Promise(resolve => { finishSynthesis = resolve; }) }, window: { location: { pathname: '/', search: '' }, dispatchEvent() {} }, URL: { createObjectURL: () => 'blob:test', revokeObjectURL() {} }, console };
+  const sandbox = { setTimeout, clearTimeout, Audio: AudioMock, voiceAIService: { synthesize: () => new Promise(resolve => { finishSynthesis = resolve; }) }, window: { location: { pathname: '/', search: '' }, dispatchEvent() {} }, URL: { createObjectURL: () => 'blob:test', revokeObjectURL() {} }, console };
   vm.runInNewContext(input.replace(/export \{[^}]+\};/g, '').replace('export function', 'function'), sandbox);
   const engine = sandbox.engine;
   const pending = engine.speak('Hello');
@@ -123,7 +123,7 @@ test('stopping microphone startup releases delayed permission stream', async () 
   let grant;
   let stopped = 0;
   let tokenCalls = 0;
-  const sandbox = { navigator: { mediaDevices: { getUserMedia: () => new Promise(resolve => { grant = resolve; }) } }, WebSocket: class {}, voiceAIService: { createSpeechToken: () => { tokenCalls++; } }, clearTimeout, setTimeout };
+  const sandbox = { AudioContext: class { resume() { return Promise.resolve(); } close() { return Promise.resolve(); } }, navigator: { mediaDevices: { getUserMedia: () => new Promise(resolve => { grant = resolve; }) } }, WebSocket: class {}, voiceAIService: { createSpeechToken: () => { tokenCalls++; } }, clearTimeout, setTimeout };
   vm.runInNewContext(input, sandbox);
   const recognition = new sandbox.Recognition();
   recognition.start();

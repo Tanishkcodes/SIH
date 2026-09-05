@@ -171,7 +171,7 @@ export function VoiceNavProvider({ children }) {
         return;
       }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        setVoiceError('Microphone access is blocked. Allow microphone access for localhost in Chrome, then tap the microphone again.');
+        setVoiceError('Microphone access is blocked. Allow microphone access for this site in your browser, then tap the microphone again.');
         setIsListening(false);
         isListeningRef.current = false;
         setMicState('idle');
@@ -253,10 +253,6 @@ export function VoiceNavProvider({ children }) {
       actions, expectsFreeText: Boolean(transcriptCallback), recognitionAlternatives,
     });
     if (epoch !== requestEpochRef.current || requestPage !== currentPageRef.current) return;
-    if (signature !== JSON.stringify(currentActions()) || transcriptCallback !== onTranscriptCallbackRef.current) {
-      showFeedback({ type: 'error', text: getNotRecognizedMessage(languageRef.current) + ' — ' + text }, 4000);
-      return;
-    }
     pageHandlers = commandHandlersRef.current[requestPage] || {};
     setLastCommand(result);
 
@@ -330,7 +326,7 @@ export function VoiceNavProvider({ children }) {
           // Speak AI-generated localized confirmation in user's spoken language
           audioFeedback.speak(result.message, languageRef.current);
         }
-      } else {
+      } else if (!onTranscriptCallbackRef.current) {
         // Not handled, and page is NOT expecting free text (e.g., Landing Page, Dashboard)
         // Keep the heard text available when an action cannot be applied.
         setTranscript(text);
@@ -342,26 +338,32 @@ export function VoiceNavProvider({ children }) {
         audioFeedback.speak(notRecognizedMsg, languageRef.current);
       }
     } else if (result.intent === 'out_of_context') {
-      // Clarification also applies on form pages; it must not become field data.
-      setTranscript(text);
-      setInterimTranscript('');
-      audioFeedback.playError();
-      const notRecognizedMsg = getNotRecognizedMessage(languageRef.current);
-      showFeedback({ type: 'error', text: result.message || `✕ ${notRecognizedMsg}` }, 5000);
-      if (result.message) {
-        audioFeedback.speak(result.message, languageRef.current);
-      } else {
-        const fallbackText = getLanguageInfo(languageRef.current).strings?.voiceNotUnderstood || "I didn't understand that. Please try again.";
-        audioFeedback.speak(fallbackText, languageRef.current);
+      if (!onTranscriptCallbackRef.current) {
+        // Clarification applies only when page does not accept free text.
+        setTranscript(text);
+        setInterimTranscript('');
+        audioFeedback.playError();
+        const notRecognizedMsg = getNotRecognizedMessage(languageRef.current);
+        showFeedback({ type: 'error', text: result.message || `✕ ${notRecognizedMsg}` }, 5000);
+        if (result.message) {
+          audioFeedback.speak(result.message, languageRef.current);
+        } else {
+          const fallbackText = getLanguageInfo(languageRef.current).strings?.voiceNotUnderstood || "I didn't understand that. Please try again.";
+          audioFeedback.speak(fallbackText, languageRef.current);
+        }
       }
     }
 
     // If there's a transcript callback (e.g., for free-form interview input), call it
     // IMPORTANT: Only call it if the voice input was NOT handled as a system/navigation command
-    if (onTranscriptCallbackRef.current && !handled && result.intent === 'free_text') {
+    if (onTranscriptCallbackRef.current && !handled) {
       setTranscript(text);
       const callback = onTranscriptCallbackRef.current;
       handled = await invoke(command => callback(text, command), result);
+      if (handled) {
+        audioFeedback.playSuccess();
+        showFeedback({ type: 'success', text: text }, 2000);
+      }
     } else if (!handled && !onTranscriptCallbackRef.current) {
       // Preserve the transcript for diagnosis without treating it as field input.
       setTranscript(text);

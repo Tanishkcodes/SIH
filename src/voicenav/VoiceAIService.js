@@ -38,6 +38,11 @@ class VoiceAIService {
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
+      // Headers can arrive long before streamed audio finishes. Keep the
+      // timeout active until the body arrives so speech cannot hold the mic
+      // paused forever on a stalled connection.
+      const body = await response.arrayBuffer();
+      response = new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
     } catch (error) {
       console.warn('Voice AI request error:', error?.message || error);
       throw error;

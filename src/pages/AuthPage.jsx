@@ -52,7 +52,7 @@ export default function AuthPage() {
   const isStaff = role === 'doctor' || role === 'admin';
 
   const { t, currentLang } = useLanguage();
-  const { loginPatient, loginStaff, session } = useSession();
+  const { loginPatient, loginStaff, logout, session } = useSession();
   const { audioPromptManager, registerPage, unregisterPage, language, setOnTranscript, clearOnTranscript, setDictationMode, speak } = useVoiceNav();
 
   // Loading state

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --experimental-vm-modules --test scripts/test-voice-stack.mjs scripts/test-voice-recovery.mjs scripts/test-voice-navigation.mjs scripts/test-clinical-interview.mjs scripts/test-clinical-ui.mjs scripts/test-ocr-safety.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

@@ -1,0 +1,343 @@
+
+> swasthya-setu@1.0.0 test
+> node --experimental-vm-modules --test scripts/test-voice-stack.mjs scripts/test-voice-recovery.mjs scripts/test-voice-navigation.mjs scripts/test-clinical-interview.mjs scripts/test-clinical-ui.mjs scripts/test-ocr-safety.mjs
+
+AI anamnesis notice: Error: provider down
+    at Object.anamnesis (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:40:28)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:125:22)
+    at ClinicalInterviewSession.answer (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:75:16)
+    at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:43:56)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+AI anamnesis notice: Error: Missing or repeated question
+    at normalizeClinicalStep (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:27:151)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:132:14)
+    at async ClinicalInterviewSession.answer (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:75:5)
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:56:36)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+AI anamnesis notice: Error: offline
+    at Object.anamnesis (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:117:52)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:125:22)
+    at ClinicalInterviewSession.begin (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:67:16)
+    at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:118:19)
+    at Test.runInAsyncScope (node:async_hooks:228:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    at Test.postRun (node:internal/test_runner/test:1247:19)
+    at Test.run (node:internal/test_runner/test:1175:12)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+✔ selected diseases and typed details all reach the model with patient context (2.1416ms)
+✔ ordinary question count is model-driven and all dynamic cards are preserved (0.4765ms)
+✔ outage preserves an answer once, automatically recovers, and never reports false completion (1.0275ms)
+✔ invalid repeated or no-option responses retry without appending a question (1.6756ms)
+✔ starting with typed symptoms cancels a still-loading complaint menu (0.2714ms)
+✔ reset discards late clinical results and keeps a new complaint independent (0.3063ms)
+✔ language switch translates active question/cards before history and caches repeated switches (0.593ms)
+✔ rapid language switches discard the slower obsolete translation (0.2885ms)
+✔ changing language during clinical generation localizes the arriving response (0.2623ms)
+✔ disposal cancels retry timers and prevents stale result updates (0.3824ms)
+✔ care system uses clinician metadata rather than surnames or all AYUSH specialties (0.1771ms)
+✔ clinical chat renders nothing unless booking Step 3 explicitly activates it (5.0757ms)
+✔ existing option cards render the generated count, question and typed-answer input (16.4368ms)
+✔ provider failures show calm recovery and cannot expose a completed-intake button (2.7367ms)
+✔ completed intake renders its continuation button (2.82ms)
+(node:30756) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+OCR safety checks passed (6 cases).
+✔ scripts\test-ocr-safety.mjs (62.0946ms)
+✔ live doctor catalog survives provider → parser, and new features execute without phrase additions (3.8518ms)
+✔ stopping a pending model decision prevents late navigation (1.5025ms)
+✖ same-page catalog changes invalidate a pending entity selection (1.8793ms)
+✖ field dictation still allows explicit navigation; ambiguous commands never enter the field (1.8066ms)
+✔ speech playback pauses a session, then resumes; background tabs stop it (1.1814ms)
+✔ unavailable and low-confidence actions fail validation; routes require a known destination (0.1341ms)
+✔ unresolved named doctor profiles never fall back to first or selected doctor (1.3188ms)
+✔ new controls beyond the old 40-control limit and repeated labels remain addressable (0.4002ms)
+✔ the active dialog excludes background controls from discovery (0.1586ms)
+✔ voice request timeout covers a stalled response body, not only headers (18.2833ms)
+✔ microphone resumes audio in the tap and releases resources if permission never finishes (2.2284ms)
+✔ missing or busy microphone reports a hardware error (3.0675ms)
+✔ stalled playback resolves and unblocks listening; old timeout cannot cancel new speech (2.9666ms)
+✔ explicit stop removes pending landing greeting gesture retries (1.6205ms)
+Gemini navigation unavailable; using Llama fallback. TypeError: Cannot read properties of undefined (reading 'thinkingLevel')
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:52:55
+    at generate (evalmachine.<anonymous>:170:28)
+    at evalmachine.<anonymous>:728:45
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:56:20)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+NVIDIA fetch error on meta/llama-3.2-3b-instruct AssertionError [ERR_ASSERTION]: The input did not match the regular expression /generativelanguage.googleapis.com/. Input:
+
+'https://integrate.api.nvidia.com/v1/chat/completions'
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:49:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at evalmachine.<anonymous>:736:50
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:56:20)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'https://integrate.api.nvidia.com/v1/chat/completions',
+  expected: /generativelanguage.googleapis.com/,
+  operator: 'match',
+  diff: 'simple'
+}
+NVIDIA fetch error on meta/llama-3.2-11b-vision-instruct AssertionError [ERR_ASSERTION]: The input did not match the regular expression /generativelanguage.googleapis.com/. Input:
+
+'https://integrate.api.nvidia.com/v1/chat/completions'
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:49:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:56:20)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'https://integrate.api.nvidia.com/v1/chat/completions',
+  expected: /generativelanguage.googleapis.com/,
+  operator: 'match',
+  diff: 'simple'
+}
+NVIDIA fetch error on meta/llama-3.3-70b-instruct AssertionError [ERR_ASSERTION]: The input did not match the regular expression /generativelanguage.googleapis.com/. Input:
+
+'https://integrate.api.nvidia.com/v1/chat/completions'
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:49:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:56:20)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'https://integrate.api.nvidia.com/v1/chat/completions',
+  expected: /generativelanguage.googleapis.com/,
+  operator: 'match',
+  diff: 'simple'
+}
+NVIDIA navigation error: Error: AssertionError [ERR_ASSERTION]: The input did not match the regular expression /generativelanguage.googleapis.com/. Input:
+
+'https://integrate.api.nvidia.com/v1/chat/completions'
+
+    at generateWithNvidia (evalmachine.<anonymous>:115:9)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:56:20)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+✔ doctor matching never defaults to the first doctor (1.66ms)
+✔ all nine speech languages use ElevenLabs v3 exclusively (19.1186ms)
+✔ speech token is single-use and never cached; missing key fails closed (1.4865ms)
+✖ Gemini receives contextual doctor navigation in all nine languages (2.659ms)
+✔ nonmedical image never enters medical extraction (2.3488ms)
+✔ medical extraction strips invented values, medicines and diagnoses (1.3264ms)
+✔ Ayurveda cannot finish with missing Dashavidha coverage (1.0234ms)
+✔ completed Dashavidha and emergency referral are accepted (1.7138ms)
+✔ stopping during synthesis prevents late playback; successful playback resolves true (5.0808ms)
+✔ stopping microphone startup releases delayed permission stream (1.3557ms)
+✔ realtime session captures PCM and delivers final speech only after connection (1.4995ms)
+✔ authentication navigation reaches Gemini even while form input is registered (1.2922ms)
+Gemini error gemini-2.0-flash 429 quota
+Gemini error gemini-1.5-flash 429 quota
+Gemini navigation unavailable; using Llama fallback. Error: AI request failed (429)
+    at generate (evalmachine.<anonymous>:190:9)
+    at async evalmachine.<anonymous>:728:39
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:216:23)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+NVIDIA fetch error on meta/llama-3.2-3b-instruct AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'meta/llama-3.2-3b-instruct'
+- 'meta/llama-4-maverick-17b-128e-instruct'
+              ^
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:213:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at evalmachine.<anonymous>:736:50
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:216:23)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'meta/llama-3.2-3b-instruct',
+  expected: 'meta/llama-4-maverick-17b-128e-instruct',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+NVIDIA fetch error on meta/llama-3.2-11b-vision-instruct AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'meta/llama-3.2-11b-vision-instruct'
+- 'meta/llama-4-maverick-17b-128e-instruct'
+              ^
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:213:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:216:23)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'meta/llama-3.2-11b-vision-instruct',
+  expected: 'meta/llama-4-maverick-17b-128e-instruct',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+NVIDIA fetch error on meta/llama-3.3-70b-instruct AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'meta/llama-3.3-70b-instruct'
+- 'meta/llama-4-maverick-17b-128e-instruct'
+              ^
+
+    at file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:213:12
+    at generateWithNvidia (evalmachine.<anonymous>:84:30)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:216:23)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 'meta/llama-3.3-70b-instruct',
+  expected: 'meta/llama-4-maverick-17b-128e-instruct',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+NVIDIA navigation error: Error: AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ 'meta/llama-3.3-70b-instruct'
+- 'meta/llama-4-maverick-17b-128e-instruct'
+              ^
+
+    at generateWithNvidia (evalmachine.<anonymous>:115:9)
+    at async evalmachine.<anonymous>:736:44
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:216:23)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+Gemini error gemini-2.0-flash 503 unavailable
+Gemini error gemini-1.5-flash 503 unavailable
+NVIDIA NIM error on meta/llama-3.2-3b-instruct 503 unavailable
+NVIDIA NIM error on meta/llama-3.2-11b-vision-instruct 503 unavailable
+NVIDIA NIM error on meta/llama-3.3-70b-instruct 503 unavailable
+✔ visible tab labels work locally in all nine languages on form pages (1.0432ms)
+✖ Gemini quota failure uses Llama instead of breaking navigation (2.0922ms)
+✔ parsed hospital and doctor results actually advance the booking flow (0.4406ms)
+✔ ambiguous and unknown hospital names do not advance the flow (0.1289ms)
+✔ field dictation releases only its own listener and restores the latest form listener (0.1483ms)
+✔ registration intent and extracted numeric details produce a form patch together (0.1919ms)
+✔ server rejects a model action absent from the live catalog (0.8405ms)
+✔ Gemini clinical responses work with no NVIDIA key and preserve all patient complaints (1.345ms)
+✖ a no-option clinical draft is repaired by the fallback provider (0.8769ms)
+✔ all ten Ayurveda questions are generated, answered and grounded before completion (3.4544ms)
+✔ invented complete coverage cannot bypass ten actual patient answers (0.8308ms)
+✔ clinical translation failures do not return unchanged text as success (2.0168ms)
+ℹ tests 54
+ℹ suites 0
+ℹ pass 49
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 218.6981
+
+✖ failing tests:
+
+test at scripts\test-voice-navigation.mjs:95:1
+✖ same-page catalog changes invalidate a pending entity selection (1.8793ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-navigation.mjs:101:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\test-voice-navigation.mjs:104:1
+✖ field dictation still allows explicit navigation; ambiguous commands never enter the field (1.8066ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-navigation.mjs:113:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\test-voice-stack.mjs:47:1
+✖ Gemini receives contextual doctor navigation in all nine languages (2.659ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  '' !== 'Dr. Ravi'
+  
+      at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:57:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: 'Dr. Ravi',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\test-voice-stack.mjs:208:1
+✖ Gemini quota failure uses Llama instead of breaking navigation (2.0922ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'out_of_context'
+  - 'login_abha'
+  
+      at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:217:10)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'out_of_context',
+    expected: 'login_abha',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at scripts\test-voice-stack.mjs:292:1
+✖ a no-option clinical draft is repaired by the fallback provider (0.8769ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  1 !== 2
+  
+      at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-voice-stack.mjs:300:44)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

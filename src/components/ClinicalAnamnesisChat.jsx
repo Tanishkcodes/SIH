@@ -205,7 +205,7 @@ const DEFAULT_STARTER_OPTIONS = [
 ];
 
 export default function ClinicalAnamnesisChat({
-  active = true,
+  active = false,
   doctor = {},
   hospital = {},
   patient = {},

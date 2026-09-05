@@ -203,15 +203,22 @@ class AudioFeedbackEngine {
       this.activeBlobUrl = url;
       this.elevenLabsAudio = audio;
       return await new Promise(resolve => {
-        this.currentResolve = resolve;
+        let loadTimer;
+        this.currentResolve = success => { clearTimeout(loadTimer); resolve(success); };
         const finish = success => {
           if (id !== this.activePlaybackId) return;
           this.stop();
           resolve(success);
         };
-        audio.onended = () => { this.currentResolve = null; finish(true); };
+        audio.onended = () => { clearTimeout(loadTimer); this.currentResolve = null; finish(true); };
         audio.onerror = () => finish(false);
-        audio.play().catch(() => finish(false));
+        audio.onplaying = () => clearTimeout(loadTimer);
+        audio.onwaiting = audio.onstalled = () => {
+          clearTimeout(loadTimer);
+          loadTimer = setTimeout(() => finish(false), 15000);
+        };
+        loadTimer = setTimeout(() => finish(false), 15000);
+        Promise.resolve(audio.play()).then(() => clearTimeout(loadTimer)).catch(() => finish(false));
       });
     } catch (error) {
       if (id === this.activePlaybackId) {

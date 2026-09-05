@@ -41,6 +41,7 @@ import {
   UserX,
   Camera,
   Upload,
+  Trash2,
 } from 'lucide-react';
 import '../styles/admin-dashboard.css';
 import '../styles/doctor-sidebar.css';

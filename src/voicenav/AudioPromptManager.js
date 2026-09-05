@@ -224,9 +224,7 @@ class AudioPromptManager {
       clearTimeout(this._langChangeTimer);
       this._langChangeTimer = null;
     }
-    if (this.currentPageId !== 'landing') {
-      this._cleanupLandingGestureRetry();
-    }
+    this._cleanupLandingGestureRetry();
     audioFeedback.stop();
   }
 }

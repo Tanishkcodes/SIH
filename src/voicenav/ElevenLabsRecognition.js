@@ -17,23 +17,37 @@ export default class ElevenLabsRecognition {
     if (this.active) return;
     this.active = true;
     const generation = ++this.generation;
+    this.connectTimer = setTimeout(() => {
+      if (generation !== this.generation) return;
+      this.stop();
+      this.onerror?.({ error: 'network', message: 'Microphone startup timed out. Check microphone permission, then tap to retry.' });
+    }, 20000);
     this.connect(generation).catch(error => {
       if (generation !== this.generation) return;
       this.stop();
-      this.onerror?.({ error: error.name === 'NotAllowedError' ? 'not-allowed' : 'network', message: error.message });
+      const kind = error.name === 'NotAllowedError' ? 'not-allowed'
+        : ['NotFoundError', 'NotReadableError'].includes(error.name) ? 'audio-capture' : 'network';
+      this.onerror?.({ error: kind, message: error.message });
     });
   }
 
   async connect(generation) {
+    // Resume in the initiating tap, before permission/network awaits consume
+    // browser user activation. Some devices do not accept a forced sample rate.
+    const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
+    if (!Context) throw new Error('This browser does not support microphone audio.');
+    const context = new Context();
+    this.context = context;
+    const resumed = context.resume();
+    // Observe rejections immediately while the permission prompt is pending.
+    resumed.catch(() => {});
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
     if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return; }
     this.stream = stream;
     const { token } = await voiceAIService.createSpeechToken();
     if (generation !== this.generation) return;
     if (!token) throw new Error('ElevenLabs did not issue a speech token.');
-    const context = new AudioContext({ sampleRate: 16000 });
-    this.context = context;
-    await context.resume();
+    await resumed;
     if (generation !== this.generation) return;
     const params = new URLSearchParams({ token, model_id: 'scribe_v2_realtime', audio_format: 'pcm_16000', commit_strategy: 'vad', vad_silence_threshold_secs: '0.9' });
     const socket = new WebSocket(`wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params}`);
@@ -43,6 +57,7 @@ export default class ElevenLabsRecognition {
       this.stop();
       this.onerror?.({ error: 'network', message });
     };
+    clearTimeout(this.connectTimer);
     this.connectTimer = setTimeout(() => fail('ElevenLabs speech connection timed out.'), 10000);
     socket.onmessage = event => {
       if (generation !== this.generation) return;
@@ -69,7 +84,7 @@ export default class ElevenLabsRecognition {
         source.connect(processor);
         processor.connect(context.destination);
         this.onstart?.();
-      } else if (['partial_transcript', 'committed_transcript'].includes(data.message_type) && data.text?.trim()) {
+      } else if (['partial_transcript', 'committed_transcript', 'committed_transcript_with_timestamps'].includes(data.message_type) && data.text?.trim()) {
         const result = [{ transcript: data.text }];
         result.isFinal = data.message_type !== 'partial_transcript';
         this.onresult?.({ resultIndex: 0, results: [result] });

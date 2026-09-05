@@ -1,0 +1,26 @@
+
+> swasthya-setu@1.0.0 build
+> vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 1735 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) C:/SWASTHYA-SETU-deploy-commit-20/src/voicenav/AudioPromptManager.js is dynamically imported by C:/SWASTHYA-SETU-deploy-commit-20/src/components/CommunitiesTab.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/context/LanguageContext.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/pages/PatientDashboard.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/pages/PatientDashboard.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/pages/PatientDashboard.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/pages/PatientDashboard.jsx but also statically imported by C:/SWASTHYA-SETU-deploy-commit-20/src/App.jsx, C:/SWASTHYA-SETU-deploy-commit-20/src/components/useClinicalInterview.js, C:/SWASTHYA-SETU-deploy-commit-20/src/voicenav/VoiceNavProvider.jsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) C:/SWASTHYA-SETU-deploy-commit-20/src/engine/SlotEngine.js is dynamically imported by C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js, C:/SWASTHYA-SETU-deploy-commit-20/src/lib/db.js but also statically imported by C:/SWASTHYA-SETU-deploy-commit-20/src/pages/PhysicianDashboard.jsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                          1.29 kB │ gzip:   0.64 kB
+dist/assets/index-CVn8ZIhY.css         176.81 kB │ gzip:  31.38 kB
+dist/assets/vendor-mUSxNEhq.js         212.69 kB │ gzip:  62.94 kB
+dist/assets/ABHAScanner-CLsjCXOS.js    376.52 kB │ gzip: 111.16 kB
+dist/assets/index-DvYgSzFx.js        1,729.38 kB │ gzip: 437.53 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.80s

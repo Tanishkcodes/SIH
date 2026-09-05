@@ -90,34 +90,51 @@ async function generateWithNvidia(
   } = {}
 ) {
   const url = "https://integrate.api.nvidia.com/v1/chat/completions";
-  const model = options.model || Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.1-8b-instruct';
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "Accept": "application/json"
-    },
-    signal: AbortSignal.timeout(options.timeoutMs || 18000),
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: options.temperature ?? 0.2,
-      top_p: options.top_p ?? 0.9,
-      max_tokens: options.max_tokens ?? 1024,
-      stream: false,
-      ...(options.responseFormat ? { response_format: options.responseFormat } : {})
-    })
-  });
+  const candidates = Array.from(new Set([
+    options.model,
+    Deno.env.get('NVIDIA_CLINICAL_MODEL'),
+    'meta/llama-3.2-3b-instruct',
+    'meta/llama-3.2-11b-vision-instruct',
+    'meta/llama-3.3-70b-instruct'
+  ].filter(Boolean))) as string[];
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("NVIDIA NIM error", response.status, errText);
-    throw new Error(`NVIDIA NIM API error ${response.status}: ${errText}`);
+  let lastErr = '';
+  for (const model of candidates) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        signal: AbortSignal.timeout(options.timeoutMs || 18000),
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: options.temperature ?? 0.2,
+          top_p: options.top_p ?? 0.9,
+          max_tokens: options.max_tokens ?? 1024,
+          stream: false,
+          ...(options.responseFormat ? { response_format: options.responseFormat } : {})
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        return String(result?.choices?.[0]?.message?.content || "");
+      }
+
+      const errText = await response.text();
+      console.warn("NVIDIA NIM error on", model, response.status, errText);
+      lastErr = `NVIDIA NIM API error ${response.status}: ${errText}`;
+      if (![400, 404, 410, 429, 500, 502, 503, 504].includes(response.status)) break;
+    } catch (e) {
+      console.warn("NVIDIA fetch error on", model, e);
+      lastErr = e instanceof Error ? e.message : String(e);
+    }
   }
-
-  const result = await response.json();
-  return String(result?.choices?.[0]?.message?.content || "");
+  throw new Error(lastErr || "All NVIDIA NIM candidates failed");
 }
 
 function pcmToWav(pcmBuffer: Uint8Array, sampleRate = 24000, numChannels = 1, bitDepth = 16): Uint8Array {
@@ -187,6 +204,30 @@ const resolveLanguage = (input: unknown): { code: string; name: string; script: 
   return CLINICAL_LANGUAGES.en;
 };
 
+function cleanGeminiSchema(val: any): any {
+  if (!val || typeof val !== 'object') return val;
+  if (Array.isArray(val)) return val.map(cleanGeminiSchema);
+  const { minimum, maximum, additionalProperties, $schema, ...rest } = val;
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rest)) {
+    cleaned[k] = cleanGeminiSchema(v);
+  }
+  return cleaned;
+}
+
+function matchIntent(intent: string, allowed: string[]): string | null {
+  if (!intent || typeof intent !== 'string') return null;
+  if (allowed.includes(intent)) return intent;
+  const toCamel = (s: string) => s.replace(/_([a-z])/g, (_, g) => g.toUpperCase());
+  const toSnake = (s: string) => s.replace(/[A-Z]/g, g => `_${g.toLowerCase()}`);
+  const camel = toCamel(intent);
+  if (allowed.includes(camel)) return camel;
+  const snake = toSnake(intent);
+  if (allowed.includes(snake)) return snake;
+  const found = allowed.find(a => a.toLowerCase().replace(/_/g, '') === intent.toLowerCase().replace(/_/g, ''));
+  return found || null;
+}
+
 async function generate(
   key: string,
   model: string,
@@ -197,20 +238,20 @@ async function generate(
   thinkingLevel?: 'minimal' | 'low',
   navigation = false,
 ) {
-  const candidates = navigation ? [model] : Array.from(new Set([model, 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite']));
+  const candidates = navigation ? Array.from(new Set([model, 'gemini-2.0-flash', 'gemini-1.5-flash'])) : Array.from(new Set([model, 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']));
   let lastStatus = 500;
   for (const candidate of candidates) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${encodeURIComponent(key)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      signal: AbortSignal.timeout(navigation ? 4500 : 9000),
+      signal: AbortSignal.timeout(navigation ? 7000 : 9000),
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          ...(schema ? { responseMimeType: 'application/json', responseJsonSchema: schema } : {}),
+          ...(schema ? { responseMimeType: 'application/json', responseJsonSchema: cleanGeminiSchema(schema) } : {}),
           temperature,
           maxOutputTokens,
-          ...(candidate.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
+          ...(candidate.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         },
       }),
     });
@@ -218,9 +259,9 @@ async function generate(
     lastStatus = response.status;
     const detail = await response.text();
     console.error('Gemini error', candidate, response.status, detail);
-    if (![404, 429, 500, 502, 503, 504].includes(response.status)) break;
+    if (![400, 404, 429, 500, 502, 503, 504].includes(response.status)) break;
   }
-  throw new Error(`AI request failed (${lastStatus})`);
+  throw new Error(`AI request failed (${lastStatus}) on candidates: ${candidates.join(', ')}`);
 }
 
 async function generateWithVision(
@@ -320,7 +361,7 @@ Deno.serve(async (request: Request) => {
     const nvidiaKey = Deno.env.get('NVIDIA_API_KEY') || Deno.env.get('NVIDIA_NIM_API_KEY');
     const key = Deno.env.get('GEMINI_API_KEY');
     if (!key && !nvidiaKey) return json({ error: 'No AI model (NVIDIA or Gemini) is configured on the server' }, 503);
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-2.0-flash';
 
     if (action === 'analyze_report') {
       const imageData = String(payload.image || payload.dataUrl || payload.fileUrl || '').trim();
@@ -550,7 +591,7 @@ Transcript: ${JSON.stringify(String(payload.transcript || '').slice(0, 2000))}`;
 
     if (action === 'anamnesis') {
       const dimensions = ['prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'];
-      const fields = ['notes','location','spread','nature','severity','duration','triggers','medications','associatedSymptoms','redFlags', ...dimensions];
+      const fields = ['chiefComplaint','chiefComplaints','disease','condition','notes','location','spread','nature','severity','duration','triggers','medications','associatedSymptoms','redFlags', ...dimensions];
       const history = Array.isArray(payload.history) ? payload.history.slice(-100) : [];
       const patient = payload.patient && typeof payload.patient === 'object' ? payload.patient : {};
       const facts = payload.caseSummary && typeof payload.caseSummary === 'object' ? payload.caseSummary : {};
@@ -598,34 +639,33 @@ You MUST finalize the consultation intake now:
 • Red Flags: [pertinent positives/negatives screened]
 • Prior Treatment: [medications taken & response]"`
           : `DOCTOR-GRADE CLINICAL REASONING PROTOCOL:
-You are an expert Clinical Triage Specialist assisting an OPD physician (${payload.doctorSpecialty || 'General Physician'}).
-Your objective is to extract the exact high-yield clinical facts (History of Present Illness - HPI) that a doctor needs to reach an accurate diagnosis and treatment plan, saving valuable consultation time.
+You are an expert Clinical Diagnostic Physician Assistant for Swasthya Setu assisting an OPD doctor (${payload.doctorSpecialty || 'General Physician'}).
+Patient's stated health issue / chief complaint: "${payload.disease || 'General health consultation'}".
 
-DECIDE THE NEXT HIGHEST-YIELD QUESTION BASED ON CLINICAL STAGE:
+FIRST-PRINCIPLES CLINICAL TRIAGE RULES (ZERO HARDCODING):
+Patients can present with ANY conceivable medical condition, symptom, disease, or concern across any medical or surgical specialty.
+Do NOT use fixed lists, templates, or rigid categories. Use genuine clinical diagnosis:
 
-Stage 1 — Exact Clinical Characterization (If onset/character not yet established):
-- For PAIN (Headache, Abdomen, Chest, Joint, Back):
-  * Headache: Ask pain type (one-sided pulsating/throbbing migraine, tight band-like tension, cluster) and triggers (screen, stress, lack of sleep).
-  * Stomach Pain: Ask exact pain nature (burning acidity in epigastrium, sharp colicky cramps, dull lower ache) and relation to meals (empty stomach vs after eating).
-  * Chest Discomfort: Ask character (heaviness/pressure vs sharp stabbing on deep breath) and radiation (left arm, jaw, back).
-  * Joint/Body Pain: Ask specific joints involved, morning stiffness duration (>30 min vs brief), or post-viral fatigue.
-- For FEVER / INFECTION:
-  * Ask temperature range (>102°F high grade vs low grade), presence of chills/shivering (rigors), and pattern (continuous vs evening spikes).
-- For RESPIRATORY (Cough, Cold, Breathlessness):
-  * Ask cough type (dry hacking vs wet productive with yellow/green phlegm or blood) and breathing comfort when lying down or walking.
-- For ANY CUSTOM COMPLAINT typed by user:
-  * Ask the single most critical diagnostic feature specific to that condition (e.g. for Dengue: eye pain, rash, bleeding gums; for UTI: burning, frequency; for Allergy: swelling, itching).
+1. Analyze the Patient's Stated Issue:
+   - Identify the exact pathology, organ system, or condition the patient mentioned ("${payload.disease}").
+   - Formulate the single most high-yield, discriminating medical question that the attending specialist needs to know at this moment.
 
-Stage 2 — Associated Features & Critical Red Flags (Rule out emergencies):
-- Screen for pertinent associated symptoms and alarm signs:
-  * Sudden "thunderclap" headache, neck stiffness, or vision changes.
-  * Chest heaviness with breathlessness or cold sweating.
-  * Vomiting blood, black tarry stools, or inability to keep liquids down.
-  * High fever with altered consciousness or petechial rash.
-  * If acute life-threatening signs are detected: set urgentReferral=true.
+2. Diagnostic Guidance by Nature of Complaint:
+   - If the patient mentions an illness or diagnosis (e.g. Cancer, Hepatitis, Arthritis, Kidney stones, PCOD, Glaucoma, Depression, Asthma, etc.):
+     * Ask the exact subtype, affected body part/organ, or whether it is newly suspected vs confirmed by tests/scans. Provide specific, medically accurate choices reflecting the common sites, types, or presentations of that condition.
+   - If the patient describes an acute or localized symptom (e.g. Rash, Bleeding, Shortness of breath, Fever, Vomiting, Swelling):
+     * Characterize its specific clinical nature (appearance, onset, progression) and screen for pertinent red flags.
+   - If the patient describes a chronic condition (e.g. Diabetes, Hypertension, Thyroid):
+     * Ask about current control, latest readings/test numbers, or hallmark complications.
+   - If the patient's complaint is pain: ask pain character and radiation. If the complaint is NOT pain (e.g. cancer, rash, hair loss, vision change, weakness, diabetes): NEVER ask generic pain questions!
 
-Stage 3 — Relieving Factors & Medications Already Taken:
-- Ask what medications or home remedies the patient has taken for this episode (e.g., Paracetamol, painkillers, antacids, antibiotics) and whether they provided relief.`;
+3. Context-Aware Progression:
+   - Review previous questions & answers in the conversation history.
+   - Never repeat questions. Move logically: (1) Primary character/subtype -> (2) Associated symptoms & red flags -> (3) Treatments/medications already tried.
+
+4. Doctor-Grade Options (2 to 5 options):
+   - Every option must be a distinct, informative clinical possibility tailored to the question.
+   - Always choose the most fitting iconType from: 'target', 'chest', 'back', 'shoulder', 'clock', 'flame', 'pill', 'moon', 'wind', 'thermometer', 'stomach', 'headache', 'cough', 'bodypain', 'leaf', 'question'.`;
 
       const prompt = `You are an expert Clinical Consultation AI for Swasthya Setu Indian healthcare kiosks.
 Respond purely and strictly in ${language.name}. The question, options, and completionMessage must all be written in natural, fluent ${language.name}. Never respond in Latin or other languages.
@@ -697,13 +737,13 @@ Return ONLY pure JSON.`;
                 { role: 'system', content: 'You are an expert Clinical Diagnostic AI assistant for Swasthya Setu. Output only valid JSON matching the requested structure.' },
                 { role: 'user', content: instruction }
               ], {
-                model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.1-8b-instruct',
+                model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.2-3b-instruct',
                 temperature: 0.05,
-                max_tokens: 320,
-                timeoutMs: 6500,
+                max_tokens: 600,
+                timeoutMs: 8500,
                 responseFormat: { type: 'json_object' }
               }))
-            : parseModelJson(await generate(key!, model, instruction, schema, 0.1, 800, 'minimal', true));
+            : parseModelJson(await generate(key!, model, instruction, schema, 0.1, 800, 'minimal', false));
           return json(validate(raw));
         } catch (error) { repair = error instanceof Error ? error.message : 'Generate a valid clinical step'; }
       }
@@ -801,23 +841,36 @@ Decision rules:
 Message: Always return a concise, polite confirmation in the SELECTED language (${resolveLanguage(payload.language).name}), even if speech is mixed (e.g., "डॉक्टर अपॉइंटमेंट खोला जा रहा है।", "மருத்துவரை பார்க்க வழிநடத்துகிறது.", "Opening doctor appointment.", etc.).`;
 
 
+    let geminiErr = '';
+    let nvidiaErr = '';
+    let geminiResult = null;
+    let nvidiaResult = null;
+
     if (key) {
       try {
-        const parsed = parseModelJson(await generate(key, model, prompt, schema, 0.05, 512, 'minimal', true));
-        if (allowed.includes(parsed?.intent)) return json(parsed);
+        const raw = await generate(key, model, prompt, schema, 0.05, 512, 'minimal', false);
+        geminiResult = parseModelJson(raw);
+        const matched = matchIntent(geminiResult?.intent, allowed);
+        if (matched) return json({ ...geminiResult, intent: matched });
       } catch (error) {
-        console.warn('Gemini navigation unavailable; using Llama fallback.', error);
+        geminiErr = error instanceof Error ? error.message : String(error);
       }
     }
     if (nvidiaKey) {
-      const parsed = extractJsonFromText(await generateWithNvidia(nvidiaKey, [
-        { role: 'system', content: `Classify navigation or form input. Return only JSON matching this schema: ${JSON.stringify(schema)}` },
-        { role: 'user', content: prompt },
-      ], { temperature: 0, max_tokens: 512, timeoutMs: 4500, responseFormat: { type: 'json_object' } }));
-      if (allowed.includes(parsed?.intent)) return json(parsed);
+      try {
+        const raw = await generateWithNvidia(nvidiaKey, [
+          { role: 'system', content: `Classify navigation or form input. Return only JSON matching this schema: ${JSON.stringify(schema)}` },
+          { role: 'user', content: prompt },
+        ], { temperature: 0, max_tokens: 512, timeoutMs: 8000, responseFormat: { type: 'json_object' } });
+        nvidiaResult = extractJsonFromText(raw);
+        const matched = matchIntent(nvidiaResult?.intent, allowed);
+        if (matched) return json({ ...nvidiaResult, intent: matched });
+      } catch (e) {
+        nvidiaErr = e instanceof Error ? e.message : String(e);
+      }
     }
 
-    return json({ intent: 'out_of_context', confidence: 0, target: '', value: '', message: '' });
+    return json({ intent: 'out_of_context', confidence: 0, target: '', value: '', message: '', _debug: { geminiErr, nvidiaErr, geminiResult, nvidiaResult, allowed } });
   } catch (error) {
     console.error(error);
     return json({ error: error instanceof Error ? error.message : 'Voice service request failed' }, 500);

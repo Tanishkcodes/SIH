@@ -173,7 +173,14 @@ export default function HistoryInterviewPage() {
 
         {/* Dynamic UI based on question type */}
         {currentQ.type === 'bodySystem' && (
-          <BodyMap onSelect={(part) => handleAnswer(`pain in ${part}`, part)} />
+          <div className="options-grid">
+            {['head', 'chest', 'abdomen', 'backBody', 'arms', 'legs', 'skin', 'general'].map(part => (
+              <button type="button" className="option-card" key={part}
+                onClick={() => handleAnswer(`pain in ${part === 'backBody' ? 'back' : part}`, part)}>
+                {t(part)}
+              </button>
+            ))}
+          </div>
         )}
 
         {currentQ.type === 'painScale' && (

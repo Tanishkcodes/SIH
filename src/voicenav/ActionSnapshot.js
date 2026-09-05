@@ -36,7 +36,7 @@ export function buildActions(pageCommands = {}, globalCommands = {}, controls = 
 }
 
 export function validateIntent(result, actions, routes = [], expectsFreeText = false) {
-  if (!result || !Number.isFinite(result.confidence) || result.confidence < 0.7) return false;
+  if (!result || !Number.isFinite(result.confidence) || result.confidence < 0.5) return false;
   if (result.intent === 'out_of_context') return true;
   if (result.intent === 'free_text') return expectsFreeText;
   if (!actions.some(action => action.intent === result.intent)) return false;

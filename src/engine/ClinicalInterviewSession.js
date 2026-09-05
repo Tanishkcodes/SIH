@@ -117,50 +117,34 @@ export class ClinicalInterviewSession {
     this.update({ busy: true, recovering: retry > 0 });
     const history = this.state.messages.map(({ sender, originalText, field, stepIndex }) => ({ sender, text: originalText, field, stepIndex }));
     const language = this.language;
-    let result;
+    let result, step, requestTimer;
 
-    const cooldown = Math.max(this.aiUnavailableUntil || 0, globalAiUnavailableUntil);
-    const isCooldownActive = Boolean(cooldown && Date.now() < cooldown);
-
-    if (isCooldownActive) {
-      await new Promise(r => setTimeout(r, 220));
+    try {
+      const timeoutPromise = new Promise((_, reject) => { requestTimer = setTimeout(() => reject(new Error('AI request timeout')), 8000); });
+      result = await Promise.race([
+        this.service.anamnesis({ ...this.context, disease: this.disease || '', language, history,
+          latestInput: history.at(-1)?.sender === 'user' ? history.at(-1).text : '',
+          caseSummary: this.state.summary, questionCount: history.filter(message => message.sender === 'user' && message.field).length, phase,
+          requireTouchOptions: retry > 0,
+        }),
+        timeoutPromise
+      ]);
+      step = normalizeClinicalStep(result, history);
+    } catch (error) {
       if (this.disposed || generation !== this.generation) return;
-      result = this._getLocalStep(phase, history, language);
-    } else {
-      try {
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI request timeout')), 7500));
-        result = await Promise.race([
-          this.service.anamnesis({ ...this.context, disease: this.disease || '', language, history,
-            latestInput: history.at(-1)?.sender === 'user' ? history.at(-1).text : '',
-            caseSummary: this.state.summary, questionCount: history.filter(message => message.sender === 'user' && message.field).length, phase,
-            requireTouchOptions: retry > 0,
-          }),
-          timeoutPromise
-        ]);
-      } catch (error) {
-        if (this.disposed || generation !== this.generation) return;
-        const isServerDown = (error?.message && (
-          error.message.includes('No AI model available') ||
-          error.message.includes('503') ||
-          error.message.includes('not configured') ||
-          error.message.includes('Failed to fetch') ||
-          error.message.includes('timeout')
-        )) || retry >= 1;
-
-        if (isServerDown) {
-          this.aiUnavailableUntil = Date.now() + 60000;
-          globalAiUnavailableUntil = this.aiUnavailableUntil;
-          result = this._getLocalStep(phase, history, language);
-        } else {
-          this.pendingPhase = phase;
-          this.update({ busy: false, recovering: true });
-          this.retryTimer = this.schedule(() => this.request(phase, retry + 1), Math.min(30000, 1500 * 2 ** Math.min(retry, 5)));
-          return;
-        }
+      console.warn('AI anamnesis notice:', error);
+      if (retry < 1) {
+        this.pendingPhase = phase;
+        this.update({ busy: false, recovering: true });
+        this.retryTimer = this.schedule(() => this.request(phase, retry + 1), 600);
+        return;
       }
+      result = this._getLocalStep(phase, history, language);
+      step = normalizeClinicalStep(result, history);
+    } finally {
+      clearTimeout(requestTimer);
     }
     if (this.disposed || generation !== this.generation) return;
-    const step = normalizeClinicalStep(result, history);
     this.aiUnavailableUntil = 0;
     globalAiUnavailableUntil = 0;
     this.pendingPhase = null;
@@ -179,10 +163,6 @@ export class ClinicalInterviewSession {
     if (language !== this.language) await this.localize(this.language);
   }
   async translate(texts, language) {
-    const cooldown = Math.max(this.aiUnavailableUntil || 0, globalAiUnavailableUntil);
-    if (cooldown && Date.now() < cooldown) {
-      return texts;
-    }
     const key = JSON.stringify([language, texts]);
     if (this.cache.has(key)) return this.cache.get(key);
     try {
@@ -193,8 +173,7 @@ export class ClinicalInterviewSession {
         return result.translations;
       }
     } catch (e) {
-      this.aiUnavailableUntil = Date.now() + 600000;
-      globalAiUnavailableUntil = this.aiUnavailableUntil;
+      console.warn('Translation notice, using source text:', e);
     }
     return texts;
   }
