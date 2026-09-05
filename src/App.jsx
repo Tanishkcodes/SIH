@@ -149,11 +149,13 @@ function GlobalVoiceHandler() {
 
       // ── Named route navigation (from AI navigate_to intent) ──────────────
       navigate: ({ value, target }) => {
-        const dest = VOICE_ROUTES.find(r => r.id === (value || target));
-        if (dest) navigate(dest.path);
+        const dest = VOICE_ROUTES.find(r => r.id === (target || value));
+        if (!dest) return false;
+        navigate(dest.path);
+        return true;
       },
-      navigate_to: ({ value }) => {
-        const dest = VOICE_ROUTES.find(r => r.id === value);
+      navigate_to: ({ value, target }) => {
+        const dest = VOICE_ROUTES.find(r => r.id === (target || value));
         if (dest) navigate(dest.path);
       },
 

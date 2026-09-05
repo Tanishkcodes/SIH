@@ -17,24 +17,24 @@ import {
 import OCRProcessor from '../engine/OCRProcessor';
 
 const REPORT_COPY = {
-  en:{title:'Upload previous medical reports',subtitle:'This helps the doctor understand your health history.',scan:'Scan report',scanDesc:'Use the camera to scan reports and documents.',start:'Start scanning',or:'or',upload:'Upload from device',uploadDesc:'Choose reports from your phone or computer.',choose:'Choose files',attached:'Attached medical documents',doctorFile:'Will be attached to the doctor’s appointment file.',safe:'Your files are stored for this appointment and available through the clinical workflow.',formats:'Supported: PDF, JPG, PNG · Maximum 5 MB per file',cameraError:'Camera permission was not granted or the camera is unavailable. You can choose a photo instead.',initializing:'Initializing camera…',capture:'Capture document',view:'View document',remove:'Remove',previous:'Previous',next:'Next'},
-  hi:{title:'पिछली मेडिकल रिपोर्ट अपलोड करें',subtitle:'इससे डॉक्टर आपकी स्वास्थ्य जानकारी बेहतर समझ सकेंगे।',scan:'रिपोर्ट स्कैन करें',scanDesc:'रिपोर्ट और दस्तावेज़ स्कैन करने के लिए कैमरा उपयोग करें।',start:'स्कैन शुरू करें',or:'या',upload:'डिवाइस से अपलोड करें',uploadDesc:'फोन या कंप्यूटर से रिपोर्ट चुनें।',choose:'फाइल चुनें',attached:'संलग्न मेडिकल दस्तावेज़',doctorFile:'डॉक्टर की अपॉइंटमेंट फाइल से जोड़ा जाएगा।',safe:'आपकी फाइलें इस अपॉइंटमेंट के लिए संग्रहित होकर क्लिनिकल कार्यप्रवाह में उपलब्ध रहेंगी।',formats:'समर्थित: PDF, JPG, PNG · प्रति फाइल अधिकतम 5 MB',cameraError:'कैमरा अनुमति नहीं मिली या कैमरा उपलब्ध नहीं है। आप फोटो चुन सकते हैं।',initializing:'कैमरा शुरू हो रहा है…',capture:'दस्तावेज़ कैप्चर करें',view:'दस्तावेज़ देखें',remove:'हटाएँ',previous:'पिछला',next:'अगला'},
-  ta:{title:'முந்தைய மருத்துவ அறிக்கைகளை பதிவேற்றவும்',subtitle:'உங்கள் உடல்நல வரலாற்றை மருத்துவர் புரிந்துகொள்ள இது உதவும்.',scan:'அறிக்கையை ஸ்கேன் செய்',scanDesc:'அறிக்கைகள் மற்றும் ஆவணங்களை கேமராவில் ஸ்கேன் செய்யவும்.',start:'ஸ்கேன் தொடங்கு',or:'அல்லது',upload:'சாதனத்திலிருந்து பதிவேற்று',uploadDesc:'தொலைபேசி அல்லது கணினியிலிருந்து அறிக்கைகளைத் தேர்ந்தெடுக்கவும்.',choose:'கோப்புகளைத் தேர்ந்தெடு',attached:'இணைக்கப்பட்ட மருத்துவ ஆவணங்கள்',doctorFile:'மருத்துவரின் முன்பதிவு கோப்பில் இணைக்கப்படும்.',safe:'இந்த முன்பதிவிற்காக கோப்புகள் சேமிக்கப்பட்டு மருத்துவ செயல்முறையில் கிடைக்கும்.',formats:'ஆதரவு: PDF, JPG, PNG · ஒரு கோப்பிற்கு அதிகபட்சம் 5 MB',cameraError:'கேமரா அனுமதி இல்லை அல்லது கேமரா கிடைக்கவில்லை. பதிலாக படம் தேர்ந்தெடுக்கலாம்.',initializing:'கேமரா தொடங்குகிறது…',capture:'ஆவணத்தைப் படம் பிடி',view:'ஆவணத்தைப் பார்',remove:'நீக்கு',previous:'முந்தையது',next:'அடுத்து'},
-  te:{title:'మునుపటి వైద్య నివేదికలను అప్‌లోడ్ చేయండి',subtitle:'మీ ఆరోగ్య చరిత్రను డాక్టర్ అర్థం చేసుకోవడానికి ఇది సహాయపడుతుంది.',scan:'నివేదిక స్కాన్ చేయండి',scanDesc:'నివేదికలు, పత్రాలను కెమెరాతో స్కాన్ చేయండి.',start:'స్కానింగ్ ప్రారంభించండి',or:'లేదా',upload:'పరికరం నుండి అప్‌లోడ్',uploadDesc:'ఫోన్ లేదా కంప్యూటర్ నుండి నివేదికలను ఎంచుకోండి.',choose:'ఫైళ్లు ఎంచుకోండి',attached:'జోడించిన వైద్య పత్రాలు',doctorFile:'డాక్టర్ అపాయింట్‌మెంట్ ఫైల్‌కు జోడించబడుతుంది.',safe:'మీ ఫైళ్లు ఈ అపాయింట్‌మెంట్ కోసం నిల్వై క్లినికల్ ప్రక్రియలో అందుబాటులో ఉంటాయి.',formats:'మద్దతు: PDF, JPG, PNG · ఒక్క ఫైల్ గరిష్ఠం 5 MB',cameraError:'కెమెరా అనుమతి లేదు లేదా అందుబాటులో లేదు. బదులుగా ఫోటో ఎంచుకోండి.',initializing:'కెమెరా ప్రారంభమవుతోంది…',capture:'పత్రాన్ని క్యాప్చర్ చేయండి',view:'పత్రం చూడండి',remove:'తొలగించండి',previous:'మునుపటి',next:'తర్వాత'},
-  bn:{title:'আগের মেডিকেল রিপোর্ট আপলোড করুন',subtitle:'এটি ডাক্তারকে আপনার স্বাস্থ্য ইতিহাস বুঝতে সাহায্য করে।',scan:'রিপোর্ট স্ক্যান করুন',scanDesc:'ক্যামেরা দিয়ে রিপোর্ট ও নথি স্ক্যান করুন।',start:'স্ক্যান শুরু করুন',or:'অথবা',upload:'ডিভাইস থেকে আপলোড',uploadDesc:'ফোন বা কম্পিউটার থেকে রিপোর্ট বেছে নিন।',choose:'ফাইল বেছে নিন',attached:'সংযুক্ত মেডিকেল নথি',doctorFile:'ডাক্তারের অ্যাপয়েন্টমেন্ট ফাইলে যুক্ত হবে।',safe:'ফাইলগুলো এই অ্যাপয়েন্টমেন্টের জন্য সংরক্ষিত হয়ে ক্লিনিক্যাল প্রক্রিয়ায় পাওয়া যাবে।',formats:'সমর্থিত: PDF, JPG, PNG · প্রতি ফাইল সর্বোচ্চ 5 MB',cameraError:'ক্যামেরা অনুমতি নেই বা ক্যামেরা পাওয়া যাচ্ছে না। পরিবর্তে ছবি বেছে নিন।',initializing:'ক্যামেরা চালু হচ্ছে…',capture:'নথির ছবি তুলুন',view:'নথি দেখুন',remove:'মুছুন',previous:'আগের',next:'পরবর্তী'},
-  mr:{title:'मागील वैद्यकीय अहवाल अपलोड करा',subtitle:'यामुळे डॉक्टरांना तुमचा आरोग्य इतिहास समजण्यास मदत होते.',scan:'अहवाल स्कॅन करा',scanDesc:'कॅमेराने अहवाल आणि कागदपत्रे स्कॅन करा.',start:'स्कॅन सुरू करा',or:'किंवा',upload:'डिव्हाइसवरून अपलोड',uploadDesc:'फोन किंवा संगणकातून अहवाल निवडा.',choose:'फाइल निवडा',attached:'जोडलेली वैद्यकीय कागदपत्रे',doctorFile:'डॉक्टरांच्या अपॉइंटमेंट फाइलला जोडले जाईल.',safe:'तुमच्या फाइल्स या अपॉइंटमेंटसाठी साठवल्या जातात आणि क्लिनिकल प्रक्रियेत उपलब्ध असतात.',formats:'समर्थित: PDF, JPG, PNG · प्रति फाइल कमाल 5 MB',cameraError:'कॅमेरा परवानगी मिळाली नाही किंवा उपलब्ध नाही. त्याऐवजी फोटो निवडा.',initializing:'कॅमेरा सुरू होत आहे…',capture:'कागदपत्र कॅप्चर करा',view:'कागदपत्र पहा',remove:'काढा',previous:'मागील',next:'पुढील'},
-  gu:{title:'અગાઉના મેડિકલ રિપોર્ટ અપલોડ કરો',subtitle:'આ ડૉક્ટરને તમારો આરોગ્ય ઇતિહાસ સમજવામાં મદદ કરે છે.',scan:'રિપોર્ટ સ્કેન કરો',scanDesc:'કેમેરાથી રિપોર્ટ અને દસ્તાવેજ સ્કેન કરો.',start:'સ્કેન શરૂ કરો',or:'અથવા',upload:'ડિવાઇસથી અપલોડ',uploadDesc:'ફોન અથવા કમ્પ્યુટરથી રિપોર્ટ પસંદ કરો.',choose:'ફાઇલ પસંદ કરો',attached:'જોડેલા મેડિકલ દસ્તાવેજો',doctorFile:'ડૉક્ટરની એપોઇન્ટમેન્ટ ફાઇલમાં જોડાશે.',safe:'ફાઇલો આ એપોઇન્ટમેન્ટ માટે સંગ્રહિત થઈ ક્લિનિકલ પ્રક્રિયામાં ઉપલબ્ધ રહેશે.',formats:'સમર્થિત: PDF, JPG, PNG · દરેક ફાઇલ મહત્તમ 5 MB',cameraError:'કેમેરાની મંજૂરી મળી નથી અથવા ઉપલબ્ધ નથી. તેના બદલે ફોટો પસંદ કરો.',initializing:'કેમેરા શરૂ થાય છે…',capture:'દસ્તાવેજ કૅપ્ચર કરો',view:'દસ્તાવેજ જુઓ',remove:'દૂર કરો',previous:'પાછળ',next:'આગળ'},
-  kn:{title:'ಹಿಂದಿನ ವೈದ್ಯಕೀಯ ವರದಿಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ',subtitle:'ಇದು ನಿಮ್ಮ ಆರೋಗ್ಯ ಇತಿಹಾಸವನ್ನು ವೈದ್ಯರು ಅರ್ಥಮಾಡಿಕೊಳ್ಳಲು ಸಹಾಯ ಮಾಡುತ್ತದೆ.',scan:'ವರದಿ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ',scanDesc:'ಕ್ಯಾಮೆರಾದಿಂದ ವರದಿ ಮತ್ತು ದಾಖಲೆಗಳನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ.',start:'ಸ್ಕ್ಯಾನಿಂಗ್ ಪ್ರಾರಂಭಿಸಿ',or:'ಅಥವಾ',upload:'ಸಾಧನದಿಂದ ಅಪ್‌ಲೋಡ್',uploadDesc:'ಫೋನ್ ಅಥವಾ ಕಂಪ್ಯೂಟರ್‌ನಿಂದ ವರದಿ ಆಯ್ಕೆ ಮಾಡಿ.',choose:'ಫೈಲ್ ಆಯ್ಕೆ',attached:'ಲಗತ್ತಿಸಿದ ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳು',doctorFile:'ವೈದ್ಯರ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಫೈಲ್‌ಗೆ ಲಗತ್ತಿಸಲಾಗುತ್ತದೆ.',safe:'ನಿಮ್ಮ ಫೈಲ್‌ಗಳು ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್‌ಗಾಗಿ ಸಂಗ್ರಹವಾಗಿ ಕ್ಲಿನಿಕಲ್ ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿ ಲಭ್ಯವಿರುತ್ತವೆ.',formats:'ಬೆಂಬಲಿತ: PDF, JPG, PNG · ಪ್ರತಿ ಫೈಲ್ ಗರಿಷ್ಠ 5 MB',cameraError:'ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಇಲ್ಲ ಅಥವಾ ಲಭ್ಯವಿಲ್ಲ. ಬದಲಿಗೆ ಚಿತ್ರ ಆಯ್ಕೆ ಮಾಡಿ.',initializing:'ಕ್ಯಾಮೆರಾ ಆರಂಭವಾಗುತ್ತಿದೆ…',capture:'ದಾಖಲೆ ಸೆರೆಹಿಡಿಯಿರಿ',view:'ದಾಖಲೆ ನೋಡಿ',remove:'ತೆಗೆದುಹಾಕಿ',previous:'ಹಿಂದೆ',next:'ಮುಂದೆ'},
-  ml:{title:'മുൻ മെഡിക്കൽ റിപ്പോർട്ടുകൾ അപ്‌ലോഡ് ചെയ്യുക',subtitle:'നിങ്ങളുടെ ആരോഗ്യ ചരിത്രം മനസ്സിലാക്കാൻ ഇത് ഡോക്ടറെ സഹായിക്കുന്നു.',scan:'റിപ്പോർട്ട് സ്കാൻ ചെയ്യുക',scanDesc:'ക്യാമറ ഉപയോഗിച്ച് റിപ്പോർട്ടുകളും രേഖകളും സ്കാൻ ചെയ്യുക.',start:'സ്കാൻ ആരംഭിക്കുക',or:'അല്ലെങ്കിൽ',upload:'ഉപകരണത്തിൽ നിന്ന് അപ്‌ലോഡ്',uploadDesc:'ഫോണിൽ നിന്നോ കമ്പ്യൂട്ടറിൽ നിന്നോ റിപ്പോർട്ടുകൾ തിരഞ്ഞെടുക്കുക.',choose:'ഫയലുകൾ തിരഞ്ഞെടുക്കുക',attached:'ചേർത്ത മെഡിക്കൽ രേഖകൾ',doctorFile:'ഡോക്ടറുടെ അപ്പോയിന്റ്മെന്റ് ഫയലിൽ ചേർക്കും.',safe:'ഫയലുകൾ ഈ അപ്പോയിന്റ്മെന്റിനായി സൂക്ഷിച്ച് ക്ലിനിക്കൽ പ്രക്രിയയിൽ ലഭ്യമാക്കും.',formats:'പിന്തുണ: PDF, JPG, PNG · ഓരോ ഫയലിനും പരമാവധി 5 MB',cameraError:'ക്യാമറ അനുമതി ലഭിച്ചില്ല അല്ലെങ്കിൽ ക്യാമറ ലഭ്യമല്ല. പകരം ചിത്രം തിരഞ്ഞെടുക്കാം.',initializing:'ക്യാമറ ആരംഭിക്കുന്നു…',capture:'രേഖ പകർത്തുക',view:'രേഖ കാണുക',remove:'നീക്കുക',previous:'മുമ്പ്',next:'അടുത്തത്'}
+  en: { title: 'Upload previous medical reports', subtitle: 'This helps the doctor understand your health history.', scan: 'Scan report', scanDesc: 'Use the camera to scan reports and documents.', start: 'Start scanning', or: 'or', upload: 'Upload from device', uploadDesc: 'Choose reports from your phone or computer.', choose: 'Choose files', attached: 'Attached medical documents', doctorFile: 'Will be attached to the doctor’s appointment file.', safe: 'Your files are stored for this appointment and available through the clinical workflow.', formats: 'Supported: PDF, JPG, PNG · Maximum 5 MB per file', cameraError: 'Camera permission was not granted or the camera is unavailable. You can choose a photo instead.', initializing: 'Initializing camera…', capture: 'Capture document', view: 'View document', remove: 'Remove', previous: 'Previous', next: 'Next' },
+  hi: { title: 'पिछली मेडिकल रिपोर्ट अपलोड करें', subtitle: 'इससे डॉक्टर आपकी स्वास्थ्य जानकारी बेहतर समझ सकेंगे।', scan: 'रिपोर्ट स्कैन करें', scanDesc: 'रिपोर्ट और दस्तावेज़ स्कैन करने के लिए कैमरा उपयोग करें।', start: 'स्कैन शुरू करें', or: 'या', upload: 'डिवाइस से अपलोड करें', uploadDesc: 'फोन या कंप्यूटर से रिपोर्ट चुनें।', choose: 'फाइल चुनें', attached: 'संलग्न मेडिकल दस्तावेज़', doctorFile: 'डॉक्टर की अपॉइंटमेंट फाइल से जोड़ा जाएगा।', safe: 'आपकी फाइलें इस अपॉइंटमेंट के लिए संग्रहित होकर क्लिनिकल कार्यप्रवाह में उपलब्ध रहेंगी।', formats: 'समर्थित: PDF, JPG, PNG · प्रति फाइल अधिकतम 5 MB', cameraError: 'कैमरा अनुमति नहीं मिली या कैमरा उपलब्ध नहीं है। आप फोटो चुन सकते हैं।', initializing: 'कैमरा शुरू हो रहा है…', capture: 'दस्तावेज़ कैप्चर करें', view: 'दस्तावेज़ देखें', remove: 'हटाएँ', previous: 'पिछला', next: 'अगला' },
+  ta: { title: 'முந்தைய மருத்துவ அறிக்கைகளை பதிவேற்றவும்', subtitle: 'உங்கள் உடல்நல வரலாற்றை மருத்துவர் புரிந்துகொள்ள இது உதவும்.', scan: 'அறிக்கையை ஸ்கேன் செய்', scanDesc: 'அறிக்கைகள் மற்றும் ஆவணங்களை கேமராவில் ஸ்கேன் செய்யவும்.', start: 'ஸ்கேன் தொடங்கு', or: 'அல்லது', upload: 'சாதனத்திலிருந்து பதிவேற்று', uploadDesc: 'தொலைபேசி அல்லது கணினியிலிருந்து அறிக்கைகளைத் தேர்ந்தெடுக்கவும்.', choose: 'கோப்புகளைத் தேர்ந்தெடு', attached: 'இணைக்கப்பட்ட மருத்துவ ஆவணங்கள்', doctorFile: 'மருத்துவரின் முன்பதிவு கோப்பில் இணைக்கப்படும்.', safe: 'இந்த முன்பதிவிற்காக கோப்புகள் சேமிக்கப்பட்டு மருத்துவ செயல்முறையில் கிடைக்கும்.', formats: 'ஆதரவு: PDF, JPG, PNG · ஒரு கோப்பிற்கு அதிகபட்சம் 5 MB', cameraError: 'கேமரா அனுமதி இல்லை அல்லது கேமரா கிடைக்கவில்லை. பதிலாக படம் தேர்ந்தெடுக்கலாம்.', initializing: 'கேமரா தொடங்குகிறது…', capture: 'ஆவணத்தைப் படம் பிடி', view: 'ஆவணத்தைப் பார்', remove: 'நீக்கு', previous: 'முந்தையது', next: 'அடுத்து' },
+  te: { title: 'మునుపటి వైద్య నివేదికలను అప్‌లోడ్ చేయండి', subtitle: 'మీ ఆరోగ్య చరిత్రను డాక్టర్ అర్థం చేసుకోవడానికి ఇది సహాయపడుతుంది.', scan: 'నివేదిక స్కాన్ చేయండి', scanDesc: 'నివేదికలు, పత్రాలను కెమెరాతో స్కాన్ చేయండి.', start: 'స్కానింగ్ ప్రారంభించండి', or: 'లేదా', upload: 'పరికరం నుండి అప్‌లోడ్', uploadDesc: 'ఫోన్ లేదా కంప్యూటర్ నుండి నివేదికలను ఎంచుకోండి.', choose: 'ఫైళ్లు ఎంచుకోండి', attached: 'జోడించిన వైద్య పత్రాలు', doctorFile: 'డాక్టర్ అపాయింట్‌మెంట్ ఫైల్‌కు జోడించబడుతుంది.', safe: 'మీ ఫైళ్లు ఈ అపాయింట్‌మెంట్ కోసం నిల్వై క్లినికల్ ప్రక్రియలో అందుబాటులో ఉంటాయి.', formats: 'మద్దతు: PDF, JPG, PNG · ఒక్క ఫైల్ గరిష్ఠం 5 MB', cameraError: 'కెమెరా అనుమతి లేదు లేదా అందుబాటులో లేదు. బదులుగా ఫోటో ఎంచుకోండి.', initializing: 'కెమెరా ప్రారంభమవుతోంది…', capture: 'పత్రాన్ని క్యాప్చర్ చేయండి', view: 'పత్రం చూడండి', remove: 'తొలగించండి', previous: 'మునుపటి', next: 'తర్వాత' },
+  bn: { title: 'আগের মেডিকেল রিপোর্ট আপলোড করুন', subtitle: 'এটি ডাক্তারকে আপনার স্বাস্থ্য ইতিহাস বুঝতে সাহায্য করে।', scan: 'রিপোর্ট স্ক্যান করুন', scanDesc: 'ক্যামেরা দিয়ে রিপোর্ট ও নথি স্ক্যান করুন।', start: 'স্ক্যান শুরু করুন', or: 'অথবা', upload: 'ডিভাইস থেকে আপলোড', uploadDesc: 'ফোন বা কম্পিউটার থেকে রিপোর্ট বেছে নিন।', choose: 'ফাইল বেছে নিন', attached: 'সংযুক্ত মেডিকেল নথি', doctorFile: 'ডাক্তারের অ্যাপয়েন্টমেন্ট ফাইলে যুক্ত হবে।', safe: 'ফাইলগুলো এই অ্যাপয়েন্টমেন্টের জন্য সংরক্ষিত হয়ে ক্লিনিক্যাল প্রক্রিয়ায় পাওয়া যাবে।', formats: 'সমর্থিত: PDF, JPG, PNG · প্রতি ফাইল সর্বোচ্চ 5 MB', cameraError: 'ক্যামেরা অনুমতি নেই বা ক্যামেরা পাওয়া যাচ্ছে না। পরিবর্তে ছবি বেছে নিন।', initializing: 'ক্যামেরা চালু হচ্ছে…', capture: 'নথির ছবি তুলুন', view: 'নথি দেখুন', remove: 'মুছুন', previous: 'আগের', next: 'পরবর্তী' },
+  mr: { title: 'मागील वैद्यकीय अहवाल अपलोड करा', subtitle: 'यामुळे डॉक्टरांना तुमचा आरोग्य इतिहास समजण्यास मदत होते.', scan: 'अहवाल स्कॅन करा', scanDesc: 'कॅमेराने अहवाल आणि कागदपत्रे स्कॅन करा.', start: 'स्कॅन सुरू करा', or: 'किंवा', upload: 'डिव्हाइसवरून अपलोड', uploadDesc: 'फोन किंवा संगणकातून अहवाल निवडा.', choose: 'फाइल निवडा', attached: 'जोडलेली वैद्यकीय कागदपत्रे', doctorFile: 'डॉक्टरांच्या अपॉइंटमेंट फाइलला जोडले जाईल.', safe: 'तुमच्या फाइल्स या अपॉइंटमेंटसाठी साठवल्या जातात आणि क्लिनिकल प्रक्रियेत उपलब्ध असतात.', formats: 'समर्थित: PDF, JPG, PNG · प्रति फाइल कमाल 5 MB', cameraError: 'कॅमेरा परवानगी मिळाली नाही किंवा उपलब्ध नाही. त्याऐवजी फोटो निवडा.', initializing: 'कॅमेरा सुरू होत आहे…', capture: 'कागदपत्र कॅप्चर करा', view: 'कागदपत्र पहा', remove: 'काढा', previous: 'मागील', next: 'पुढील' },
+  gu: { title: 'અગાઉના મેડિકલ રિપોર્ટ અપલોડ કરો', subtitle: 'આ ડૉક્ટરને તમારો આરોગ્ય ઇતિહાસ સમજવામાં મદદ કરે છે.', scan: 'રિપોર્ટ સ્કેન કરો', scanDesc: 'કેમેરાથી રિપોર્ટ અને દસ્તાવેજ સ્કેન કરો.', start: 'સ્કેન શરૂ કરો', or: 'અથવા', upload: 'ડિવાઇસથી અપલોડ', uploadDesc: 'ફોન અથવા કમ્પ્યુટરથી રિપોર્ટ પસંદ કરો.', choose: 'ફાઇલ પસંદ કરો', attached: 'જોડેલા મેડિકલ દસ્તાવેજો', doctorFile: 'ડૉક્ટરની એપોઇન્ટમેન્ટ ફાઇલમાં જોડાશે.', safe: 'ફાઇલો આ એપોઇન્ટમેન્ટ માટે સંગ્રહિત થઈ ક્લિનિકલ પ્રક્રિયામાં ઉપલબ્ધ રહેશે.', formats: 'સમર્થિત: PDF, JPG, PNG · દરેક ફાઇલ મહત્તમ 5 MB', cameraError: 'કેમેરાની મંજૂરી મળી નથી અથવા ઉપલબ્ધ નથી. તેના બદલે ફોટો પસંદ કરો.', initializing: 'કેમેરા શરૂ થાય છે…', capture: 'દસ્તાવેજ કૅપ્ચર કરો', view: 'દસ્તાવેજ જુઓ', remove: 'દૂર કરો', previous: 'પાછળ', next: 'આગળ' },
+  kn: { title: 'ಹಿಂದಿನ ವೈದ್ಯಕೀಯ ವರದಿಗಳನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ', subtitle: 'ಇದು ನಿಮ್ಮ ಆರೋಗ್ಯ ಇತಿಹಾಸವನ್ನು ವೈದ್ಯರು ಅರ್ಥಮಾಡಿಕೊಳ್ಳಲು ಸಹಾಯ ಮಾಡುತ್ತದೆ.', scan: 'ವರದಿ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ', scanDesc: 'ಕ್ಯಾಮೆರಾದಿಂದ ವರದಿ ಮತ್ತು ದಾಖಲೆಗಳನ್ನು ಸ್ಕ್ಯಾನ್ ಮಾಡಿ.', start: 'ಸ್ಕ್ಯಾನಿಂಗ್ ಪ್ರಾರಂಭಿಸಿ', or: 'ಅಥವಾ', upload: 'ಸಾಧನದಿಂದ ಅಪ್‌ಲೋಡ್', uploadDesc: 'ಫೋನ್ ಅಥವಾ ಕಂಪ್ಯೂಟರ್‌ನಿಂದ ವರದಿ ಆಯ್ಕೆ ಮಾಡಿ.', choose: 'ಫೈಲ್ ಆಯ್ಕೆ', attached: 'ಲಗತ್ತಿಸಿದ ವೈದ್ಯಕೀಯ ದಾಖಲೆಗಳು', doctorFile: 'ವೈದ್ಯರ ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಫೈಲ್‌ಗೆ ಲಗತ್ತಿಸಲಾಗುತ್ತದೆ.', safe: 'ನಿಮ್ಮ ಫೈಲ್‌ಗಳು ಈ ಅಪಾಯಿಂಟ್ಮೆಂಟ್‌ಗಾಗಿ ಸಂಗ್ರಹವಾಗಿ ಕ್ಲಿನಿಕಲ್ ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿ ಲಭ್ಯವಿರುತ್ತವೆ.', formats: 'ಬೆಂಬಲಿತ: PDF, JPG, PNG · ಪ್ರತಿ ಫೈಲ್ ಗರಿಷ್ಠ 5 MB', cameraError: 'ಕ್ಯಾಮೆರಾ ಅನುಮತಿ ಇಲ್ಲ ಅಥವಾ ಲಭ್ಯವಿಲ್ಲ. ಬದಲಿಗೆ ಚಿತ್ರ ಆಯ್ಕೆ ಮಾಡಿ.', initializing: 'ಕ್ಯಾಮೆರಾ ಆರಂಭವಾಗುತ್ತಿದೆ…', capture: 'ದಾಖಲೆ ಸೆರೆಹಿಡಿಯಿರಿ', view: 'ದಾಖಲೆ ನೋಡಿ', remove: 'ತೆಗೆದುಹಾಕಿ', previous: 'ಹಿಂದೆ', next: 'ಮುಂದೆ' },
+  ml: { title: 'മുൻ മെഡിക്കൽ റിപ്പോർട്ടുകൾ അപ്‌ലോഡ് ചെയ്യുക', subtitle: 'നിങ്ങളുടെ ആരോഗ്യ ചരിത്രം മനസ്സിലാക്കാൻ ഇത് ഡോക്ടറെ സഹായിക്കുന്നു.', scan: 'റിപ്പോർട്ട് സ്കാൻ ചെയ്യുക', scanDesc: 'ക്യാമറ ഉപയോഗിച്ച് റിപ്പോർട്ടുകളും രേഖകളും സ്കാൻ ചെയ്യുക.', start: 'സ്കാൻ ആരംഭിക്കുക', or: 'അല്ലെങ്കിൽ', upload: 'ഉപകരണത്തിൽ നിന്ന് അപ്‌ലോഡ്', uploadDesc: 'ഫോണിൽ നിന്നോ കമ്പ്യൂട്ടറിൽ നിന്നോ റിപ്പോർട്ടുകൾ തിരഞ്ഞെടുക്കുക.', choose: 'ഫയലുകൾ തിരഞ്ഞെടുക്കുക', attached: 'ചേർത്ത മെഡിക്കൽ രേഖകൾ', doctorFile: 'ഡോക്ടറുടെ അപ്പോയിന്റ്മെന്റ് ഫയലിൽ ചേർക്കും.', safe: 'ഫയലുകൾ ഈ അപ്പോയിന്റ്മെന്റിനായി സൂക്ഷിച്ച് ക്ലിനിക്കൽ പ്രക്രിയയിൽ ലഭ്യമാക്കും.', formats: 'പിന്തുണ: PDF, JPG, PNG · ഓരോ ഫയലിനും പരമാവധി 5 MB', cameraError: 'ക്യാമറ അനുമതി ലഭിച്ചില്ല അല്ലെങ്കിൽ ക്യാമറ ലഭ്യമല്ല. പകരം ചിത്രം തിരഞ്ഞെടുക്കാം.', initializing: 'ക്യാമറ ആരംഭിക്കുന്നു…', capture: 'രേഖ പകർത്തുക', view: 'രേഖ കാണുക', remove: 'നീക്കുക', previous: 'മുമ്പ്', next: 'അടുത്തത്' }
 };
 
 export default function ReportUploadStep({
   doctor = {},
   hospital = {},
   uploadedReports = [],
-  onUpdateReports = () => {},
-  onPrevious = () => {},
-  onNext = () => {},
+  onUpdateReports = () => { },
+  onPrevious = () => { },
+  onNext = () => { },
   language = 'en'
 }) {
   const c = REPORT_COPY[language] || REPORT_COPY.en;
@@ -272,7 +272,7 @@ export default function ReportUploadStep({
             transition: 'all 0.2s ease',
             cursor: 'pointer'
           }}
-          onClick={startCamera}
+            onClick={startCamera}
           >
             {/* 3D-Style Scanner Graphic */}
             <div style={{
@@ -381,7 +381,7 @@ export default function ReportUploadStep({
             transition: 'all 0.2s ease',
             cursor: 'pointer'
           }}
-          onClick={() => fileInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.click()}
           >
             {/* Blue Cloud Icon Illustration */}
             <div style={{
@@ -479,89 +479,146 @@ export default function ReportUploadStep({
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {reports.map((report) => (
                 <div
                   key={report.id}
                   style={{
                     backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    padding: '10px 14px',
+                    border: report.ocrStatus === 'rejected' ? '1.5px solid #fecaca' : '1.5px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '16px 20px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '10px',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.02)'
+                    gap: '16px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                    transition: 'all 0.2s ease',
+                    flexWrap: 'wrap'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                  {/* Left: Document Icon & Info */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: '1 1 300px', minWidth: 0 }}>
                     <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '8px',
-                      backgroundColor: report.type === 'pdf' ? '#fef2f2' : '#f0fdf4',
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '12px',
+                      backgroundColor: report.type === 'pdf' ? '#fef2f2' : '#eff6ff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: report.type === 'pdf' ? '#ef4444' : '#16a34a',
+                      color: report.type === 'pdf' ? '#dc2626' : '#2563eb',
                       flexShrink: 0
                     }}>
-                      <FileText size={18} />
+                      <FileText size={24} />
                     </div>
-                    <div style={{ overflow: 'hidden' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
-                        fontSize: '0.85rem',
-                        fontWeight: '700',
-                        color: '#1e293b',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
+                        fontSize: '0.95rem',
+                        fontWeight: '800',
+                        color: '#0f172a',
+                        wordBreak: 'break-word',
+                        lineHeight: 1.3
                       }}>
                         {report.name}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                        {report.size} • {report.source}
+                      <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500', marginTop: '3px' }}>
+                        {report.size} • {report.source || 'Upload'}
+                        {report.uploadedAt && <span> • {report.uploadedAt}</span>}
                       </div>
-                      <div style={{ fontSize: '0.73rem', color: report.ocrStatus === 'rejected' ? '#b91c1c' : '#64748b', marginTop: '4px' }}>
-                        {report.ocrStatus === 'analyzing' ? 'Analyzing image…' : report.ocrStatus === 'success' ? 'AI extraction complete — review against the original' : report.analysisNotice || 'No verified OCR data'}
-                        {report.ocrStatus === 'rejected' && ' This file will not be attached to the consultation.'}
-                      </div>
+                      {(report.analysisNotice || report.ocrStatus === 'rejected' || report.ocrStatus === 'analyzing' || report.ocrStatus === 'success') && (
+                        <div style={{
+                          fontSize: '0.78rem',
+                          color: report.ocrStatus === 'rejected' ? '#b91c1c' : report.ocrStatus === 'success' ? '#15803d' : '#475569',
+                          backgroundColor: report.ocrStatus === 'rejected' ? '#fef2f2' : report.ocrStatus === 'success' ? '#f0fdf4' : '#f8fafc',
+                          border: report.ocrStatus === 'rejected' ? '1px solid #fecaca' : report.ocrStatus === 'success' ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          padding: '4px 8px',
+                          marginTop: '6px',
+                          display: 'inline-block',
+                          lineHeight: 1.4
+                        }}>
+                          {report.ocrStatus === 'analyzing'
+                            ? 'Analyzing image…'
+                            : report.ocrStatus === 'success'
+                              ? '✓ AI extraction complete'
+                              : report.analysisNotice || 'No verified OCR data'}
+                          {report.ocrStatus === 'rejected' && ' (File will not be attached)'}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {report.dataUrl && (
-                      <button
-                        onClick={() => setSelectedPreviewDoc(report)}
-                        title={c.view}
-                        aria-label={c.view}
-                        style={{
-                          backgroundColor: 'transparent',
-                          border: 'none',
-                          color: '#64748b',
-                          cursor: 'pointer',
-                          padding: '4px',
-                          borderRadius: '6px'
-                        }}
-                      >
-                        <Eye size={16} />
-                      </button>
-                    )}
+                  {/* Right: Actions (View / See & Cancel / Remove) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    {/* View Button */}
                     <button
-                      onClick={() => removeReport(report.id)}
-                      title={c.remove}
-                      aria-label={c.remove}
+                      type="button"
+                      onClick={() => setSelectedPreviewDoc(report)}
+                      title={c.view || 'View document'}
+                      aria-label={c.view || 'View document'}
                       style={{
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        color: '#ef4444',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        backgroundColor: '#eff6ff',
+                        border: '1.5px solid #bfdbfe',
+                        color: '#1d4ed8',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
                         cursor: 'pointer',
-                        padding: '4px',
-                        borderRadius: '6px'
+                        transition: 'all 0.15s ease',
+                        boxShadow: '0 1px 2px rgba(29, 78, 216, 0.06)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#dbeafe';
+                        e.currentTarget.style.borderColor = '#93c5fd';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                        e.currentTarget.style.borderColor = '#bfdbfe';
                       }}
                     >
-                      <Trash2 size={16} />
+                      <Eye size={18} strokeWidth={2.2} />
+                      <span>{c.view || 'View'}</span>
+                    </button>
+
+                    {/* Cancel / Remove Button */}
+                    <button
+                      type="button"
+                      onClick={() => removeReport(report.id)}
+                      title={c.remove || 'Remove document'}
+                      aria-label={c.remove || 'Remove document'}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        backgroundColor: '#fef2f2',
+                        border: '1.5px solid #fecaca',
+                        color: '#dc2626',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: '0 1px 2px rgba(220, 38, 38, 0.06)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fee2e2';
+                        e.currentTarget.style.borderColor = '#fca5a5';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fef2f2';
+                        e.currentTarget.style.borderColor = '#fecaca';
+                      }}
+                    >
+                      <Trash2 size={18} strokeWidth={2.2} />
+                      <span>{c.remove || 'Remove'}</span>
                     </button>
                   </div>
                 </div>

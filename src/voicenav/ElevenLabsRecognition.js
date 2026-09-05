@@ -8,7 +8,7 @@ export default class ElevenLabsRecognition {
   set lang(value) {
     if (value === this._lang) return;
     this._lang = value;
-    if (this.active) { this.stop(); this.start(); }
+    // UI language is a response preference; recognition auto-detects speech.
   }
   generation = 0;
   active = false;
@@ -35,7 +35,7 @@ export default class ElevenLabsRecognition {
     this.context = context;
     await context.resume();
     if (generation !== this.generation) return;
-    const params = new URLSearchParams({ token, model_id: 'scribe_v2_realtime', audio_format: 'pcm_16000', language_code: this.lang.split('-')[0], commit_strategy: 'vad', vad_silence_threshold_secs: '0.7' });
+    const params = new URLSearchParams({ token, model_id: 'scribe_v2_realtime', audio_format: 'pcm_16000', commit_strategy: 'vad', vad_silence_threshold_secs: '0.9' });
     const socket = new WebSocket(`wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params}`);
     this.socket = socket;
     const fail = message => {
@@ -46,7 +46,8 @@ export default class ElevenLabsRecognition {
     this.connectTimer = setTimeout(() => fail('ElevenLabs speech connection timed out.'), 10000);
     socket.onmessage = event => {
       if (generation !== this.generation) return;
-      const data = JSON.parse(event.data);
+      let data;
+      try { data = JSON.parse(event.data); } catch { fail('Invalid speech response. Please reconnect the microphone.'); return; }
       if (data.message_type === 'session_started') {
         clearTimeout(this.connectTimer);
         const source = context.createMediaStreamSource(stream);
@@ -68,8 +69,8 @@ export default class ElevenLabsRecognition {
         source.connect(processor);
         processor.connect(context.destination);
         this.onstart?.();
-      } else if (['partial_transcript', 'committed_transcript', 'committed_transcript_with_timestamps'].includes(data.message_type) && data.text?.trim()) {
-        const result = [{ transcript: data.text, confidence: 1 }];
+      } else if (['partial_transcript', 'committed_transcript'].includes(data.message_type) && data.text?.trim()) {
+        const result = [{ transcript: data.text }];
         result.isFinal = data.message_type !== 'partial_transcript';
         this.onresult?.({ resultIndex: 0, results: [result] });
       } else if (data.message_type?.includes('error')) {

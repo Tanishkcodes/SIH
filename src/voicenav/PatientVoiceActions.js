@@ -64,7 +64,8 @@ export function createPatientSelectionActions({
         }
       }
       if (!doctor) {
-        doctor = selectedDoctor || (local.length > 0 ? local[0] : (doctors && doctors.length > 0 ? doctors[0] : null));
+        // An unresolved named request must never open an arbitrary doctor's profile.
+        if (!command?.target && !command?.value) doctor = selectedDoctor;
       }
       if (!doctor) return false;
       if (local.some(item => item.id === doctor.id)) {

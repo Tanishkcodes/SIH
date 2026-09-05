@@ -18,7 +18,8 @@ export default function VoiceInput({
   const { 
     startListening, 
     stopListening, 
-    isListening, 
+    isListening,
+    voiceSessionActive,
     setOnTranscript, 
     clearOnTranscript, 
     setDictationMode,
@@ -33,12 +34,12 @@ export default function VoiceInput({
   };
 
   useEffect(() => {
-    if (!isListening && isDictating) {
+    if (!voiceSessionActive && isDictating) {
       setIsDictating(false);
       setDictationMode(false);
       releaseTranscript();
     }
-  }, [isListening, isDictating, clearOnTranscript, setDictationMode]);
+  }, [voiceSessionActive, isDictating, clearOnTranscript, setDictationMode]);
 
   useEffect(() => {
     return () => {

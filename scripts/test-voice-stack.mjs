@@ -99,7 +99,7 @@ test('stopping during synthesis prevents late playback; successful playback reso
   let plays = 0;
   class AudioMock { play() { plays++; return Promise.resolve(); } pause() {} }
   const sandbox = { Audio: AudioMock, voiceAIService: { synthesize: () => new Promise(resolve => { finishSynthesis = resolve; }) }, window: { location: { pathname: '/', search: '' }, dispatchEvent() {} }, URL: { createObjectURL: () => 'blob:test', revokeObjectURL() {} }, console };
-  vm.runInNewContext(input.replace(/export \{[^}]+\};/g, ''), sandbox);
+  vm.runInNewContext(input.replace(/export \{[^}]+\};/g, '').replace('export function', 'function'), sandbox);
   const engine = sandbox.engine;
   const pending = engine.speak('Hello');
   engine.stop();
@@ -163,7 +163,7 @@ test('realtime session captures PCM and delivers final speech only after connect
   recognition.start();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(started, 0);
-  assert.equal(new URL(socket.url).searchParams.get('language_code'), 'hi');
+  assert.equal(new URL(socket.url).searchParams.has('language_code'), false);
   socket.onmessage({ data: JSON.stringify({ message_type: 'session_started' }) });
   assert.equal(started, 1);
   processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array([0, .5, -.5]) } });
@@ -210,7 +210,7 @@ test('Gemini quota failure uses Llama instead of breaking navigation', async () 
     assert.equal(JSON.parse(options.body).model, 'meta/llama-4-maverick-17b-128e-instruct');
     return llama({ intent: 'login_abha', confidence: 1, value: '', target: '', message: 'Opening ABHA.' });
   });
-  const data = await (await call({ action: 'intent', transcript: 'Open ABHA', expectsFreeText: true })).json();
+  const data = await (await call({ action: 'intent', transcript: 'Open ABHA', expectsFreeText: true, actions: [{ intent: 'login_abha', description: 'Open ABHA login' }] })).json();
   assert.equal(data.intent, 'login_abha');
   assert.equal(fallback, true);
 });
@@ -264,4 +264,10 @@ test('registration intent and extracted numeric details produce a form patch tog
   const patch = registrationFields({ requestedAction: 'new_patient', name: 'Test Patient', age: 38, phone: 9999999999, gender: 'Female' });
   assert.deepEqual(patch, { name: 'Test Patient', age: '38', phone: '9999999999', gender: 'Female' });
   assert.deepEqual({ name: 'Existing', age: '38', ...registrationFields({ phone: '9999999999' }) }, { name: 'Existing', age: '38', phone: '9999999999' });
+});
+
+test('server rejects a model action absent from the live catalog', async () => {
+  const call = server(async () => response({ candidates: [{ content: { parts: [{ text: JSON.stringify({ intent: 'inventedFeature', confidence: 1 }) }] } }] }), { GEMINI_API_KEY: 'test' });
+  const result = await (await call({ action: 'intent', transcript: 'Open that', actions: [{ intent: 'newFeature', description: 'A newly available feature' }] })).json();
+  assert.equal(result.intent, 'out_of_context');
 });

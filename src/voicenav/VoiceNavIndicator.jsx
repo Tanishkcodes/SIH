@@ -11,6 +11,7 @@ import '../styles/voicenav.css';
 
 export default function VoiceNavIndicator() {
   const {
+    voiceSessionActive,
     micState,
     isListening,
     isSpeaking,
@@ -126,7 +127,8 @@ export default function VoiceNavIndicator() {
         className={`voicenav-orb ${config.className}`}
         onClick={toggleListening}
         disabled={!isSpeechSupported}
-        aria-label={isSpeaking ? 'Start listening' : isListening ? 'Stop listening' : 'Start listening'}
+        aria-label={voiceSessionActive ? 'Stop listening' : 'Start listening'}
+        aria-pressed={Boolean(voiceSessionActive)}
         title={config.label}
       >
         {/* Pulse rings for listening state */}

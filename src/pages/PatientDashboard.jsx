@@ -2939,6 +2939,7 @@ export default function PatientDashboard() {
       doctor_profile: openDoctorProfile,
       open_doctor_profile: openDoctorProfile,
       select_date: command => {
+        if (!selectedDoctorObj || !bookingHospital) return false;
         const date = resolveDateFromCommand(command);
         const today = new Date().toLocaleDateString('en-CA');
 
@@ -2981,7 +2982,7 @@ export default function PatientDashboard() {
           setBookingStep(2);
           if (!command?.value) return true;
         }
-        if (bookingStep !== 2) return false;
+        if (bookingStep !== 1 && bookingStep !== 2) return false;
         const slots = [...(liveSlots.morning || []), ...(liveSlots.afternoon || []), ...(liveSlots.evening || [])].filter(slot => !slot.isPast && (slot.state === 'open' || slot.state === 'fast'));
         const query = String(command?.value || command?.target || command?.raw || '').toLowerCase().trim();
         const slot = slots.find(item =>
@@ -3081,7 +3082,7 @@ export default function PatientDashboard() {
       },
     }, {
       select_hospital: [`Select a hospital by name or one-based number. Put its exact id in target and name in value. Available hospitals: ${JSON.stringify(hospitalContext)}`],
-      select_date: [`Select appointment date in the booking wizard. Today is ${new Date().toLocaleDateString('en-CA')}. Return YYYY-MM-DD in value. Current date: ${selectedBookingDate}.`],
+      select_date: [`Select appointment date only after a doctor and hospital are selected. Current tab: ${activeTab}; view: ${bookingFlowView}; step: ${bookingStep}; doctor: ${selectedDoctorObj?.name || 'not selected'}; hospital: ${bookingHospital?.name || 'not selected'}. Today is ${new Date().toLocaleDateString('en-CA')}. Return YYYY-MM-DD in value. Current date: ${selectedBookingDate}.`],
       select_time: [`Select an available appointment time on the time selection step. Return its time24 in value. Available slots: ${JSON.stringify([...(liveSlots.morning || []), ...(liveSlots.afternoon || []), ...(liveSlots.evening || [])].filter(slot => !slot.isPast && (slot.state === 'open' || slot.state === 'fast')).map(slot => ({ time24: slot.time24, label: slot.label })))}`],
       bookHospital: [`Book at a named hospital. Put its exact id in target and name in value. Available hospitals: ${JSON.stringify(hospitalContext)}`],
       searchHospital: [`Search by name/city; prefer select_hospital for a known hospital. Available hospitals: ${JSON.stringify(hospitalContext)}`],
@@ -7382,6 +7383,7 @@ export default function PatientDashboard() {
               {filteredHospitals.map((hospital, hospitalIndex) => (
                 <div
                   key={hospital.id}
+                  data-voice-context={`Hospital: ${hospital.name}`}
                   style={{
                     backgroundColor: '#ffffff',
                     border: '1px solid #e2e8f0',
