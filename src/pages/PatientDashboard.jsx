@@ -7272,7 +7272,7 @@ export default function PatientDashboard() {
           MODAL: ALL HOSPITALS DIRECTORY (Comprehensive List with Search & Direct Booking)
           ═══════════════════════════════════════════════════════════ */}
       {showAllHospitalsModal && (
-        <div style={{
+        <div role="dialog" aria-modal="true" aria-label={tr('allHospitalsDirectory')} style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -7496,7 +7496,7 @@ export default function PatientDashboard() {
           MODAL: BOOK APPOINTMENT MODAL
           ═══════════════════════════════════════════════════════════ */}
       {showBookingModal && (
-        <div style={{
+        <div role="dialog" aria-modal="true" aria-label={tr('confirmBookingTitle')} style={{
           position: 'fixed',
           top: 0,
           left: 0,

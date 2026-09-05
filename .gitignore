@@ -1,8 +1,8 @@
 node_modules/
 dist/
+.voice-review/
 .env
 .env.*
 !.env.example
 supabase/.temp/
 supabase/functions/.env
-

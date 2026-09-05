@@ -31,14 +31,14 @@ function harness() {
     abort() {}
   }
   const audio = { isSpeaking: false, playListeningStart() {}, playSuccess() {}, playError() {}, speak() { this.isSpeaking = true; this.onSpeakingChange?.(true); }, stop() { this.isSpeaking = false; this.onSpeakingChange?.(false); } };
-  const parserContext = { console, VOICE_COMMANDS: {}, aiCommandEngine: { parseIntent: (text, actions) => { request = { text, actions }; return new Promise(resolve => { resolveIntent = resolve; }); } } };
+  const parserContext = { console, VOICE_COMMANDS: {}, aiCommandEngine: { parseIntent: (text, actions, globals, context) => { request = { text, actions, context }; return new Promise(resolve => { resolveIntent = resolve; }); } } };
   vm.runInNewContext(parserSource, parserContext);
   const document = { hidden: false, querySelectorAll: () => [] };
   const imports = {
     react: { default: React, ...React },
     './ElevenLabsRecognition': { default: Recognition },
     './TranscriptRegistry': { TranscriptRegistry },
-    './ActionSnapshot.js': { ...snapshot, captureControls: () => snapshot.captureControls(document) },
+    './ActionSnapshot.js': { ...snapshot, captureControls: () => snapshot.captureControls(document), captureScreenContext: () => snapshot.captureScreenContext(document) },
     './CommandParser': { default: parserContext.parser },
     './AudioFeedback': { default: audio, isMutedPortal: () => false },
     './AudioPromptManager': { default: { stop: () => audio.stop(), setLanguage() {}, resetIdleTimer() {} } },
@@ -65,6 +65,8 @@ function harness() {
       await flush();
     },
     async answer(result) { resolveIntent(result); await flush(); render(); },
+    partial(text) { const result = [{ transcript: text }]; result.isFinal = false; recognition.onresult({ resultIndex: 0, results: [result] }); },
+    async runTimers(delay) { for (const [id, timer] of timers) if (timer.delay === delay) { timers.delete(id); timer.fn(); } await flush(); },
     tick() { render(); intervals.forEach(fn => fn()); render(); },
     close() { cleanups.forEach(fn => fn?.()); },
   };
@@ -156,4 +158,52 @@ test('the active dialog excludes background controls from discovery', () => {
   const controls = snapshot.captureControls({ querySelectorAll: () => [dialog] });
   assert.equal(controls.length, 1);
   assert.equal(controls[0].element, button);
+});
+
+test('clarification history and form purpose reach the next model turn', async () => {
+  const h = harness();
+  h.render().registerPage('form', { select: () => true }, { select: ['Doctor A and Doctor B'] });
+  h.render().setOnTranscript(() => true, { context: { kind: 'registration' } });
+  h.render().startListening(); await h.utter('I want a doctor');
+  assert.equal(h.request.context.inputContext.kind, 'registration');
+  await h.answer({ intent: 'out_of_context', confidence: 0, message: 'Doctor A or Doctor B?' });
+  h.audio.stop(); h.tick(); await h.utter('The second doctor please');
+  assert.equal(h.request.context.conversation[0].message, 'Doctor A or Doctor B?');
+  assert.equal(h.request.context.conversation[0].handled, false);
+  await h.answer({ intent: 'select', confidence: 1 }); h.close();
+});
+
+test('unrelated catalog updates do not reject a valid action', async () => {
+  const h = harness(); let executed = 0;
+  const handlers = { reports: () => executed++ };
+  h.render().registerPage('page', handlers, { reports: ['Open reports'] });
+  h.render().startListening(); await h.utter('Please show the reports');
+  h.render().registerPage('page', { ...handlers, newFeature: () => true }, { reports: ['Open reports'], newFeature: ['Newly added feature'] });
+  await h.answer({ intent: 'reports', confidence: 1 });
+  assert.equal(executed, 1); h.close();
+});
+
+test('a negated navigation request cannot use keyword shortcuts', async () => {
+  const h = harness(); let executed = 0;
+  h.render().registerPage('page', { back: () => executed++ });
+  h.render().startListening(); await h.utter('Do not go back, I need help with this screen');
+  assert.match(h.request.text, /Do not go back/);
+  await h.answer({ intent: 'out_of_context', confidence: 0, message: 'What would you like help with?' });
+  assert.equal(executed, 0); h.close();
+});
+
+test('control insertion never rebinds an old activate index to a different button', () => {
+  const original = { intent: 'activate_0', label: 'Book', description: 'Book | Doctor A', element: {} };
+  const unrelated = { intent: 'activate_0', label: 'Book', description: 'Book | Doctor B', element: {} };
+  assert.equal(snapshot.isCurrentAction({ intent: 'activate_0' }, [], [], [original], [unrelated]), false);
+  assert.equal(snapshot.isCurrentAction({ intent: 'activate_0' }, [], [], [original], [unrelated, { ...original, intent: 'activate_1' }]), true);
+});
+
+test('model-classified clinical answers preserve the complete utterance', async () => {
+  const h = harness(); let captured;
+  h.render().registerPage('form', { back: () => true });
+  h.render().setOnTranscript(text => { captured = text; return true; }, { context: { kind: 'clinical_answer' } });
+  h.render().startListening(); await h.utter('My back hurts since yesterday, especially at night');
+  await h.answer({ intent: 'free_text', confidence: 1 });
+  assert.equal(captured, 'My back hurts since yesterday, especially at night'); h.close();
 });

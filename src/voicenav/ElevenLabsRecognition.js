@@ -24,11 +24,53 @@ export default class ElevenLabsRecognition {
     }, 20000);
     this.connect(generation).catch(error => {
       if (generation !== this.generation) return;
+      const Native = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+      if (Native && error.name !== 'NotAllowedError') {
+        console.warn('ElevenLabs speech recognition notice, switching to browser speech engine');
+        clearTimeout(this.connectTimer);
+        this.fallbackToNative(Native);
+        return;
+      }
       this.stop();
       const kind = error.name === 'NotAllowedError' ? 'not-allowed'
         : ['NotFoundError', 'NotReadableError'].includes(error.name) ? 'audio-capture' : 'network';
       this.onerror?.({ error: kind, message: error.message });
     });
+  }
+
+  fallbackToNative(Native) {
+    // Release the failed stream/context and invalidate any late socket events.
+    this.stop();
+    this.active = true;
+    const generation = this.generation;
+    try {
+      const rec = new Native();
+      rec.continuous = true;
+      rec.interimResults = true;
+      const langMap = {
+        en: 'en-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN',
+        bn: 'bn-IN', mr: 'mr-IN', gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN'
+      };
+      rec.lang = langMap[this.lang] || this.lang || 'en-IN';
+      rec.onstart = () => { if (generation === this.generation) this.onstart?.(); };
+      rec.onresult = (e) => { if (generation === this.generation) this.onresult?.(e); };
+      rec.onerror = (e) => {
+        if (generation !== this.generation) return;
+        if (e.error === 'no-speech') return;
+        this.stop();
+        this.onerror?.(e);
+      };
+      rec.onend = () => {
+        if (this.active && generation === this.generation) {
+          try { rec.start(); } catch (e) {}
+        }
+      };
+      this.nativeRec = rec;
+      rec.start();
+    } catch (e) {
+      this.stop();
+      this.onerror?.({ error: 'network', message: e.message });
+    }
   }
 
   async connect(generation) {
@@ -100,6 +142,10 @@ export default class ElevenLabsRecognition {
     this.active = false;
     ++this.generation;
     clearTimeout(this.connectTimer);
+    if (this.nativeRec) {
+      try { this.nativeRec.abort(); } catch (e) {}
+      this.nativeRec = null;
+    }
     this.processor?.disconnect();
     this.source?.disconnect();
     this.stream?.getTracks().forEach(track => track.stop());

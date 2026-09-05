@@ -1,4 +1,4 @@
-import { buildActions, captureControls, controlLabel, isAvailableControl, validateIntent } from './ActionSnapshot.js';
+import { buildActions, captureControls, captureScreenContext, isCurrentAction, controlLabel, isAvailableControl, validateIntent } from './ActionSnapshot.js';
 import ElevenLabsRecognition from './ElevenLabsRecognition';
 import { TranscriptRegistry } from './TranscriptRegistry';
 /* ============================================
@@ -40,6 +40,7 @@ const isSpeechSupported = ElevenLabsRecognition.supported;
 
 export function VoiceNavProvider({ children }) {
   const transcriptRegistryRef = useRef(new TranscriptRegistry());
+  const conversationRef = useRef([]);
   const languageContext = useLanguage();
   const currentLang = languageContext?.currentLang || 'en';
   const setCurrentLang = languageContext?.setCurrentLang;
@@ -69,6 +70,7 @@ export function VoiceNavProvider({ children }) {
   const languageRef = useRef(currentLang);
   const isDictationModeRef = useRef(false);
   const silenceTimerRef = useRef(null);
+  const pendingDispatchRef = useRef(null);
   const accumulatedTranscriptRef = useRef('');
   const recognitionAlternativesRef = useRef(['', '', '']);
 
@@ -135,7 +137,12 @@ export function VoiceNavProvider({ children }) {
 
       // Partials are display-only and must not cancel a pending committed utterance.
       if (!newFinal) {
-        if (interim && silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        if (interim && silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          // A noisy partial with no eventual commit must not erase an already
+          // committed request. Never submit uncommitted speech as field data.
+          silenceTimerRef.current = setTimeout(() => pendingDispatchRef.current?.(), 1200);
+        }
         return;
       }
 
@@ -146,7 +153,7 @@ export function VoiceNavProvider({ children }) {
 
       // Short settling window after provider VAD; new partial speech postpones dispatch.
       const finalPauseMs = 300;
-      silenceTimerRef.current = setTimeout(() => {
+      pendingDispatchRef.current = () => {
         const full = accumulatedTranscriptRef.current.trim();
         if (newFinal && full && isListeningRef.current) {
           const recognitionAlternatives = recognitionAlternativesRef.current
@@ -160,7 +167,8 @@ export function VoiceNavProvider({ children }) {
           pauseListening();
           handleVoiceInput(full, recognitionAlternatives);
         }
-      }, finalPauseMs);
+      };
+      silenceTimerRef.current = setTimeout(pendingDispatchRef.current, finalPauseMs);
     };
 
     recognition.onerror = (event) => {
@@ -245,14 +253,23 @@ export function VoiceNavProvider({ children }) {
     const controls = captureControls();
     const requestPage = currentPageRef.current;
     let pageHandlers = commandHandlersRef.current[requestPage] || {};
-    const currentActions = () => buildActions(commandParser.pageCommands[requestPage], commandParser.pageCommands.__global__, captureControls());
     const actions = buildActions(commandParser.pageCommands[requestPage], commandParser.pageCommands.__global__, controls);
-    const signature = JSON.stringify(actions);
     const transcriptCallback = onTranscriptCallbackRef.current;
     const result = await commandParser.parse(text, requestPage, {
       actions, expectsFreeText: Boolean(transcriptCallback), recognitionAlternatives,
+      screen: captureScreenContext(), inputContext: transcriptRegistryRef.current.currentEntry?.context,
+      conversation: conversationRef.current.filter(turn => turn.pageId === requestPage).slice(-2),
     });
     if (epoch !== requestEpochRef.current || requestPage !== currentPageRef.current) return;
+    const liveControls = captureControls();
+    const liveActions = buildActions(commandParser.pageCommands[requestPage], commandParser.pageCommands.__global__, liveControls);
+    const isCommand = !['free_text', 'out_of_context'].includes(result.intent);
+    if ((isCommand && !isCurrentAction(result, actions, liveActions, controls, liveControls)) ||
+        (!isCommand && transcriptCallback !== onTranscriptCallbackRef.current)) {
+      setTranscript(text);
+      setVoiceError('The available choices changed while I was listening. Please repeat your request.');
+      return;
+    }
     pageHandlers = commandHandlersRef.current[requestPage] || {};
     setLastCommand(result);
 
@@ -338,27 +355,25 @@ export function VoiceNavProvider({ children }) {
         audioFeedback.speak(notRecognizedMsg, languageRef.current);
       }
     } else if (result.intent === 'out_of_context') {
-      if (!onTranscriptCallbackRef.current) {
-        // Clarification applies only when page does not accept free text.
-        setTranscript(text);
-        setInterimTranscript('');
-        audioFeedback.playError();
-        const notRecognizedMsg = getNotRecognizedMessage(languageRef.current);
-        showFeedback({ type: 'error', text: result.message || `✕ ${notRecognizedMsg}` }, 5000);
-        if (result.message) {
-          audioFeedback.speak(result.message, languageRef.current);
-        } else {
-          const fallbackText = getLanguageInfo(languageRef.current).strings?.voiceNotUnderstood || "I didn't understand that. Please try again.";
-          audioFeedback.speak(fallbackText, languageRef.current);
-        }
+      // Clarification also applies on form pages; it must not become field data.
+      setTranscript(text);
+      setInterimTranscript('');
+      audioFeedback.playError();
+      const notRecognizedMsg = getNotRecognizedMessage(languageRef.current);
+      showFeedback({ type: 'error', text: result.message || `✕ ${notRecognizedMsg}` }, 5000);
+      if (result.message) {
+        audioFeedback.speak(result.message, languageRef.current);
+      } else {
+        const fallbackText = getLanguageInfo(languageRef.current).strings?.voiceNotUnderstood || "I didn't understand that. Please try again.";
+        audioFeedback.speak(fallbackText, languageRef.current);
       }
     }
 
     // If there's a transcript callback (e.g., for free-form interview input), call it
     // IMPORTANT: Only call it if the voice input was NOT handled as a system/navigation command
-    if (onTranscriptCallbackRef.current && !handled) {
+    if (transcriptCallback && !handled && result.intent === 'free_text' && validateIntent(result, actions, commandParser.routes, true)) {
       setTranscript(text);
-      const callback = onTranscriptCallbackRef.current;
+      const callback = transcriptCallback;
       handled = await invoke(command => callback(text, command), result);
       if (handled) {
         audioFeedback.playSuccess();
@@ -372,6 +387,8 @@ export function VoiceNavProvider({ children }) {
 
     // Reset idle timer
     audioPromptManager.resetIdleTimer();
+    // Ephemeral clarification context; patient speech is not persisted.
+    conversationRef.current = [...conversationRef.current, { pageId: requestPage, transcript: text.slice(0, 1000), intent: result.intent, message: result.message || '', handled }].slice(-2);
     db.voice.log({
       page_id: currentPageRef.current,
       language: languageRef.current,
@@ -451,6 +468,7 @@ export function VoiceNavProvider({ children }) {
   }, []);
 
   const stopListening = useCallback(() => {
+    conversationRef.current = [];
     sessionWantedRef.current = false;
     setVoiceSessionActive(false);
     requestEpochRef.current++;
@@ -537,7 +555,7 @@ export function VoiceNavProvider({ children }) {
 
   // Set callback for free-text transcript (used by interview page)
   const setOnTranscript = useCallback((callback, options = {}) => {
-    const release = transcriptRegistryRef.current.add(callback, options.priority || 0);
+    const release = transcriptRegistryRef.current.add(callback, options.priority || 0, options.context || null);
     onTranscriptCallbackRef.current = transcriptRegistryRef.current.current;
     return () => {
       release();

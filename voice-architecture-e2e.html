@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Voice architecture test</title>
+<style>body{font:16px system-ui;max-width:850px;margin:40px auto}button,input{font:inherit;padding:12px;margin:8px}pre{white-space:pre-wrap}aside{padding:16px;background:#eef6f5}</style>
+<body><h1>Voice architecture test</h1><p>Development fixture: synthetic microphone input, real Gemini decisions and real React actions. No patient data.</p><div id="root"></div>
+<script type="module">
+if (!import.meta.env.DEV) throw Error('Development fixture only');
+// Only audio capture is simulated. The actual provider, parser, current DOM
+// catalog, HTTP service, extraction and action dispatcher run unmodified.
+navigator.mediaDevices.getUserMedia = async () => { throw Error('Synthetic microphone fixture'); };
+let recognition;
+window.SpeechRecognition = class {
+  constructor() { recognition = this; }
+  start() { this.onstart?.(); }
+  abort() {}
+  stop() {}
+};
+const React = (await import('react')).default;
+const { createRoot } = await import('react-dom/client');
+const { LanguageProvider } = await import('/src/context/LanguageContext.jsx');
+const { VoiceNavProvider, useVoiceNav } = await import('/src/voicenav/VoiceNavProvider.jsx');
+const h = React.createElement;
+function Fixture() {
+  const voice = useVoiceNav();
+  const [screen, setScreen] = React.useState('Home');
+  const [command, setCommand] = React.useState('Please open transport assistance');
+  const [added, setAdded] = React.useState(false);
+  const [details, setDetails] = React.useState({});
+  React.useEffect(() => {
+    voice.registerPage('architecture-fixture', {}, {});
+    return () => voice.unregisterPage('architecture-fixture');
+  }, [voice.registerPage, voice.unregisterPage]);
+  React.useEffect(() => screen === 'Registration' ? voice.setOnTranscript((text, result) => {
+    setDetails(result.registration || {}); return Boolean(result.registration);
+  }, { context: { kind: 'registration' } }) : undefined, [screen, voice.setOnTranscript]);
+  return h(React.Fragment, null,
+    h('aside', { className: 'voicenav-container' },
+      h('label', null, 'Synthetic utterance', h('input', { 'aria-label': 'Synthetic utterance', value: command, onChange: e => setCommand(e.target.value) })),
+      h('button', { onClick: () => voice.startListening() }, 'Start test microphone'),
+      h('button', { onClick: () => { const result = [{ transcript: command }]; result.isFinal = true; recognition?.onresult?.({ resultIndex: 0, results: [result] }); } }, 'Emit utterance'),
+      h('button', { onClick: () => { voice.stopListening(); voice.audioFeedback.stop(); } }, 'Stop test'),
+      h('button', { onClick: () => setAdded(true) }, 'Add a new feature'),
+      h('p', { role: 'status' }, `State: ${voice.micState}; ${voice.voiceError || ''}`)),
+    h('main', null, h('h2', null, `Current screen: ${screen}`),
+      h('nav', null,
+        h('button', { onClick: () => setScreen('Reports') }, 'Medical reports'),
+        h('button', { onClick: () => setScreen('Transport assistance') }, 'Transport assistance'),
+        h('button', { onClick: () => setScreen('Registration') }, 'Patient registration'),
+        added && h('button', { onClick: () => setScreen('Home sample pickup') }, 'Home sample pickup')),
+      screen === 'Registration' && h('section', null, h('h3', null, 'Tell us your name and age'),
+        h('input', { 'aria-label': 'Full name', name: 'name', value: details.name || '', readOnly: true }),
+        h('input', { 'aria-label': 'Age', name: 'age', value: details.age || '', readOnly: true }))),
+    h('pre', { 'aria-label': 'Last decision' }, JSON.stringify(voice.lastCommand, null, 2)));
+}
+createRoot(document.getElementById('root')).render(h(LanguageProvider, null, h(VoiceNavProvider, null, h(Fixture))));
+</script></body></html>

@@ -74,7 +74,6 @@ class CommandParser {
     if (!input) return { intent: 'out_of_context', confidence: 0, raw: transcript };
     const registered = { ...this.pageCommands.__global__, ...this.pageCommands[currentPage] };
     const actions = context.actions || Object.entries(registered).map(([intent, description]) => ({ intent, description: String(description) }));
-    // Only exact, unique labels bypass the model. Natural phrasing always gets context.
     const matches = actions.filter(action => normalize(action.label || action.description) === input);
     if (matches.length === 1) return { intent: matches[0].intent, confidence: 1, raw: transcript };
     const commands = Object.fromEntries(actions.map(action => [action.intent, action.description]));
@@ -82,22 +81,26 @@ class CommandParser {
       page: currentPage || this.currentPage, language: this.currentLanguage,
       routes: this.routes, expectsFreeText: Boolean(context.expectsFreeText),
       recognitionAlternatives: context.recognitionAlternatives || [],
+      screen: context.screen, inputContext: context.inputContext,
+      conversation: context.conversation || [],
     });
-    return { ...result, raw: transcript };
+    return { ...result, raw: transcript, recognitionAlternatives: context.recognitionAlternatives || [] };
   }
 
-  // Check if transcript matches a specific language name (for language selection)
   matchLanguage(transcript) {
     const input = normalize(transcript);
     let bestMatch = { lang: null, confidence: 0 };
+    const langSelect = (typeof VOICE_COMMANDS !== 'undefined' && VOICE_COMMANDS?.languageSelect) || {};
 
-    Object.entries(VOICE_COMMANDS.languageSelect).forEach(([langCode, triggers]) => {
-      triggers.forEach(trigger => {
-        const score = similarity(input, trigger);
-        if (score > bestMatch.confidence) {
-          bestMatch = { lang: langCode, confidence: score };
-        }
-      });
+    Object.entries(langSelect).forEach(([langCode, triggers]) => {
+      if (Array.isArray(triggers)) {
+        triggers.forEach(trigger => {
+          const score = similarity(input, trigger);
+          if (score > bestMatch.confidence) {
+            bestMatch = { lang: langCode, confidence: score };
+          }
+        });
+      }
     });
 
     return bestMatch.confidence >= this.confidenceThreshold ? bestMatch : { lang: null, confidence: 0 };

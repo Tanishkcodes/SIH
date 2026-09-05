@@ -1,0 +1,112 @@
+
+> swasthya-setu@1.0.0 test
+> node --experimental-vm-modules --test scripts/test-voice-stack.mjs scripts/test-voice-recovery.mjs scripts/test-voice-navigation.mjs scripts/test-clinical-interview.mjs scripts/test-clinical-ui.mjs scripts/test-ocr-safety.mjs
+
+AI anamnesis notice: Error: provider down
+    at Object.anamnesis (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:40:28)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:125:22)
+    at ClinicalInterviewSession.answer (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:75:16)
+    at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:43:56)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+AI anamnesis notice: Error: Missing or repeated question
+    at normalizeClinicalStep (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:27:151)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:132:14)
+    at async ClinicalInterviewSession.answer (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:75:5)
+    at async TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:56:36)
+    at async Test.run (node:internal/test_runner/test:1125:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+AI anamnesis notice: Error: offline
+    at Object.anamnesis (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:117:52)
+    at ClinicalInterviewSession.request (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:125:22)
+    at ClinicalInterviewSession.begin (file:///C:/SWASTHYA-SETU-deploy-commit-20/src/engine/ClinicalInterviewSession.js:67:16)
+    at TestContext.<anonymous> (file:///C:/SWASTHYA-SETU-deploy-commit-20/scripts/test-clinical-interview.mjs:118:19)
+    at Test.runInAsyncScope (node:async_hooks:228:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    at Test.postRun (node:internal/test_runner/test:1247:19)
+    at Test.run (node:internal/test_runner/test:1175:12)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:787:7)
+✔ selected diseases and typed details all reach the model with patient context (2.499ms)
+✔ ordinary question count is model-driven and all dynamic cards are preserved (0.3488ms)
+✔ outage preserves an answer once, automatically recovers, and never reports false completion (1.1404ms)
+✔ invalid repeated or no-option responses retry without appending a question (2.156ms)
+✔ starting with typed symptoms cancels a still-loading complaint menu (0.4591ms)
+✔ reset discards late clinical results and keeps a new complaint independent (0.4197ms)
+✔ language switch translates active question/cards before history and caches repeated switches (0.5455ms)
+✔ rapid language switches discard the slower obsolete translation (0.3412ms)
+✔ changing language during clinical generation localizes the arriving response (0.4205ms)
+✔ disposal cancels retry timers and prevents stale result updates (0.4677ms)
+✔ care system uses clinician metadata rather than surnames or all AYUSH specialties (0.2938ms)
+✔ clinical chat renders nothing unless booking Step 3 explicitly activates it (6.9672ms)
+✔ existing option cards render the generated count, question and typed-answer input (20.6198ms)
+✔ provider failures show calm recovery and cannot expose a completed-intake button (3.8756ms)
+✔ completed intake renders its continuation button (3.7161ms)
+(node:9464) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+OCR safety checks passed (6 cases).
+✔ scripts\test-ocr-safety.mjs (79.1562ms)
+✔ live doctor catalog survives provider → parser, and new features execute without phrase additions (5.8786ms)
+✔ stopping a pending model decision prevents late navigation (1.6289ms)
+✔ same-page catalog changes invalidate a pending entity selection (1.8916ms)
+✔ field dictation still allows explicit navigation; ambiguous commands never enter the field (2.3054ms)
+✔ speech playback pauses a session, then resumes; background tabs stop it (1.4865ms)
+✔ unavailable and low-confidence actions fail validation; routes require a known destination (0.2143ms)
+✔ unresolved named doctor profiles never fall back to first or selected doctor (1.8745ms)
+✔ new controls beyond the old 40-control limit and repeated labels remain addressable (0.5622ms)
+✔ the active dialog excludes background controls from discovery (0.21ms)
+✔ clarification history and form purpose reach the next model turn (2.7843ms)
+✔ unrelated catalog updates do not reject a valid action (2.1044ms)
+✔ a negated navigation request cannot use keyword shortcuts (1.6628ms)
+✔ control insertion never rebinds an old activate index to a different button (0.1486ms)
+✔ model-classified clinical answers preserve the complete utterance (2.0361ms)
+✔ voice request timeout covers a stalled response body, not only headers (24.7714ms)
+✔ microphone resumes audio in the tap and releases resources if permission never finishes (2.5626ms)
+✔ missing or busy microphone reports a hardware error (3.6625ms)
+✔ stalled playback resolves and unblocks listening; old timeout cannot cancel new speech (4.4579ms)
+✔ explicit stop removes pending landing greeting gesture retries (2.1977ms)
+✔ doctor matching never defaults to the first doctor (2.6537ms)
+✔ all nine speech languages use ElevenLabs v3 exclusively (23.4114ms)
+✔ speech token is single-use and never cached; missing key fails closed (1.9638ms)
+✔ Gemini receives contextual doctor navigation in all nine languages (4.9001ms)
+✔ nonmedical image never enters medical extraction (2.1817ms)
+✔ medical extraction strips invented values, medicines and diagnoses (1.7505ms)
+✔ Ayurveda cannot finish with missing Dashavidha coverage (1.5809ms)
+✔ completed Dashavidha and emergency referral are accepted (2.1736ms)
+✔ stopping during synthesis prevents late playback; successful playback resolves true (6.3311ms)
+✔ stopping microphone startup releases delayed permission stream (1.8154ms)
+✔ realtime session captures PCM and delivers final speech only after connection (2.2546ms)
+✔ authentication navigation reaches Gemini even while form input is registered (1.4645ms)
+Voice understanding unavailable: [ 'gemini: Model selected an unavailable action' ]
+Gemini error gemini-2.0-flash 503 unavailable
+Gemini error gemini-1.5-flash 503 unavailable
+NVIDIA NIM error on meta/llama-4-maverick-17b-128e-instruct 503 unavailable
+NVIDIA NIM error on meta/llama-3.2-11b-vision-instruct 503 unavailable
+NVIDIA NIM error on mistralai/mistral-7b-instruct-v0.3 503 unavailable
+NVIDIA NIM error on nv-mistralai/mistral-nemo-12b-instruct 503 unavailable
+Voice understanding unavailable: [ 'gemini: Gemini navigation HTTP 401' ]
+✔ visible tab labels work locally in all nine languages on form pages (1.2689ms)
+✔ Gemini quota failure uses Llama instead of breaking navigation (1.8763ms)
+✔ parsed hospital and doctor results actually advance the booking flow (0.4277ms)
+✔ ambiguous and unknown hospital names do not advance the flow (0.123ms)
+✔ field dictation releases only its own listener and restores the latest form listener (0.1677ms)
+✔ registration intent and extracted numeric details produce a form patch together (0.238ms)
+✔ server rejects a model action absent from the live catalog (1.2911ms)
+✔ Gemini clinical responses work with no NVIDIA key and preserve all patient complaints (1.6858ms)
+✔ a no-option clinical draft is repaired by the fallback provider (1.6116ms)
+✔ all ten Ayurveda questions are generated, answered and grounded before completion (4.7815ms)
+✔ invented complete coverage cannot bypass ten actual patient answers (1.2872ms)
+✔ clinical translation failures do not return unchanged text as success (1.4418ms)
+✔ retired Gemini model is discovered and the working model is reused (1.4818ms)
+✔ provider outage is a retryable service error, never unrecognized speech (0.934ms)
+✔ registration is understood and extracted in one Gemini request (1.0797ms)
+✔ Gemini text is read after optional thought parts (1.0917ms)
+✔ transient Gemini errors retry the same model without rediscovery (1.0012ms)
+ℹ tests 64
+ℹ suites 0
+ℹ pass 64
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 295.7864

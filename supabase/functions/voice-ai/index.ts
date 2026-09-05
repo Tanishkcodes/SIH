@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { navigationGemini, navigationFallback } from './NavigationModel.ts';
 
 declare const Deno: {
   env: { get(key: string): string | undefined };
@@ -15,7 +16,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 });
 const parseModelJson = (body: any) => {
-  const raw = String(body?.candidates?.[0]?.content?.parts?.[0]?.text || '{}');
+  const raw = (body?.candidates?.[0]?.content?.parts || []).filter((part: any) => !part.thought && typeof part.text === 'string').map((part: any) => part.text).join('');
   return extractJsonFromText(raw);
 };
 
@@ -38,6 +39,36 @@ function extractJsonFromText(raw: string): any {
       try {
         return JSON.parse(cleaned.slice(firstBracket, lastBracket + 1));
       } catch (err) {}
+    }
+
+    // Fallback: parse markdown bullet key-value pairs (e.g. "- Intent: bookAppointment", "- Confidence: 1.0")
+    const lines = cleaned.split('\n');
+    const extracted: Record<string, any> = {};
+    for (const line of lines) {
+      const match = line.match(/^[-*•]?\s*[*_]*([A-Za-z_]+)[*_]*\s*:\s*(.+)$/);
+      if (match) {
+        const key = match[1].toLowerCase().replace(/_/g, '');
+        let val = match[2].trim().replace(/^[*_]+|[*_]+$/g, '');
+        if (key === 'confidence') {
+          const numMatch = val.match(/\b([0-1](?:\.\d+)?)\b/);
+          extracted.confidence = numMatch ? parseFloat(numMatch[1]) : 0.95;
+        } else if (key === 'intent') {
+          extracted.intent = val.split(/\s+/)[0].replace(/['",]/g, '');
+        } else if (key === 'target') {
+          extracted.target = val.replace(/['",]/g, '');
+        } else if (key === 'value') {
+          extracted.value = val.replace(/^['"]|['"]$/g, '');
+        } else if (key === 'message') {
+          extracted.message = val;
+        }
+      }
+    }
+    if (extracted.intent) {
+      if (extracted.confidence === undefined) extracted.confidence = 0.95;
+      if (extracted.target === undefined) extracted.target = '';
+      if (extracted.value === undefined) extracted.value = '';
+      if (extracted.message === undefined) extracted.message = '';
+      return extracted;
     }
   }
   return null;
@@ -93,15 +124,16 @@ async function generateWithNvidia(
   const candidates = Array.from(new Set([
     options.model,
     Deno.env.get('NVIDIA_CLINICAL_MODEL'),
-    'meta/llama-3.2-3b-instruct',
+    'meta/llama-4-maverick-17b-128e-instruct',
     'meta/llama-3.2-11b-vision-instruct',
-    'meta/llama-3.3-70b-instruct'
+    'mistralai/mistral-7b-instruct-v0.3',
+    'nv-mistralai/mistral-nemo-12b-instruct'
   ].filter(Boolean))) as string[];
 
   let lastErr = '';
   for (const model of candidates) {
     try {
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
@@ -119,6 +151,26 @@ async function generateWithNvidia(
           ...(options.responseFormat ? { response_format: options.responseFormat } : {})
         })
       });
+
+      if (!response.ok && response.status === 400 && options.responseFormat) {
+        response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          signal: AbortSignal.timeout(options.timeoutMs || 18000),
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: options.temperature ?? 0.2,
+            top_p: options.top_p ?? 0.9,
+            max_tokens: options.max_tokens ?? 1024,
+            stream: false,
+          })
+        });
+      }
 
       if (response.ok) {
         const result = await response.json();
@@ -251,7 +303,7 @@ async function generate(
           ...(schema ? { responseMimeType: 'application/json', responseJsonSchema: cleanGeminiSchema(schema) } : {}),
           temperature,
           maxOutputTokens,
-          ...(candidate.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : (candidate.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})),
         },
       }),
     });
@@ -320,6 +372,31 @@ Deno.serve(async (request: Request) => {
   try {
     const payload = await request.json();
     const action = String(payload.action || '');
+
+    if (action === 'test_nvidia') {
+      const nKey = Deno.env.get('NVIDIA_API_KEY') || Deno.env.get('NVIDIA_NIM_API_KEY');
+      const testModels = [
+        'mistralai/mistral-7b-instruct-v0.3',
+        'nvidia/llama-3.1-nemotron-70b-instruct',
+        'mistralai/mistral-large-2-instruct',
+        'nv-mistralai/mistral-nemo-12b-instruct',
+        'ibm/granite-3.0-8b-instruct'
+      ];
+      const results: Record<string, any> = {};
+      for (const m of testModels) {
+        try {
+          const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${nKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: m, messages: [{ role: 'user', content: 'Say hello in JSON: {"msg":"hello"}' }], max_tokens: 30 })
+          });
+          results[m] = { status: res.status, text: (await res.text()).slice(0, 100) };
+        } catch (e: any) {
+          results[m] = { error: e.message };
+        }
+      }
+      return json({ results });
+    }
 
     if (action === 'stt_token') {
       const key = Deno.env.get('ELEVENLABS_API_KEY');
@@ -727,8 +804,7 @@ Return ONLY pure JSON.`;
         return value;
       };
       let repair = '';
-      // Prioritize NVIDIA NIM (Llama 3.1 8B Instruct) for ultra-fast, intelligent clinical triage
-      const providers = [...(nvidiaKey ? ['nvidia'] : []), ...(key ? ['gemini'] : [])];
+      const providers = [...(key ? ['gemini'] : []), ...(nvidiaKey ? ['nvidia'] : [])];
       for (const provider of providers) {
         try {
           const instruction = prompt + (repair ? '\nThe previous draft was invalid. Correct this issue: ' + repair : '');
@@ -737,7 +813,7 @@ Return ONLY pure JSON.`;
                 { role: 'system', content: 'You are an expert Clinical Diagnostic AI assistant for Swasthya Setu. Output only valid JSON matching the requested structure.' },
                 { role: 'user', content: instruction }
               ], {
-                model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.2-3b-instruct',
+                model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.2-11b-vision-instruct',
                 temperature: 0.05,
                 max_tokens: 600,
                 timeoutMs: 8500,
@@ -809,9 +885,12 @@ CRITICAL: Return a structured, simple, short clinical summary for the doctor:
       : [];
     const actionIntents = actions.map((item: any) => typeof item === 'string' ? item : item?.intent || item?.id || '').filter(Boolean);
     const allowed: string[] = Array.from(new Set([...actionIntents, 'free_text', 'out_of_context']));
+    const isRegistration = payload.inputContext?.kind === 'registration';
+    const registrationProperties = Object.fromEntries(['name','age','gender','phone','abhaId','aadhaar','symptoms','confirmationMessage'].map(field => [field, { type: 'string' }]));
     const schema = { type: 'object', properties: {
       intent: { type: 'string', enum: allowed }, confidence: { type: 'number', minimum: 0, maximum: 1 },
       target: { type: 'string' }, value: { type: 'string' }, message: { type: 'string' },
+      ...(isRegistration ? { registration: { type: 'object', properties: registrationProperties, required: Object.keys(registrationProperties), additionalProperties: false } } : {}),
     }, required: ['intent','confidence','target','value','message'], additionalProperties: false };
     const prompt = `You are the primary AI Voice Navigation and Clinical Assistant for Swasthya Setu, an Indian healthcare kiosk and web portal.
 The user speaks naturally in ANY of 9 Indian languages (Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, English, Hinglish, Tanglish, or any regional dialect).
@@ -821,6 +900,9 @@ Context:
 - Current Page: ${payload.pageId || 'landing'}
 - Language Hint: ${payload.language || 'unknown'}
 - Page accepts free text: ${Boolean(payload.expectsFreeText)}
+- Current screen headings, fields and selected tabs: ${JSON.stringify(payload.screen || {})}
+- Active input purpose: ${JSON.stringify(payload.inputContext || {})}
+- Recent turns (context only; never repeat an already executed action): ${JSON.stringify(Array.isArray(payload.conversation) ? payload.conversation.slice(-2) : [])}
 - Available page/global actions: ${JSON.stringify(actions)}
 - Navigable routes: ${JSON.stringify(routes)}
 - User Speech: ${JSON.stringify(String(payload.transcript || '').slice(0, 2000))}
@@ -835,42 +917,29 @@ Decision rules:
 - For navigate/navigate_to put an existing route id in both target and value.
 - Explicit navigation takes precedence over dictation. If a form accepts text and the user supplies facts or answers, return free_text with the complete transcript. Do not turn symptoms in a form into navigation.
 - If the request needs multiple dependent steps, select only the first executable step and explain what is happening. Never claim that later steps are completed.
+- Resolve brief follow-ups such as "the second one", "yes, that hospital" or corrections using the recent clarification and CURRENT available choices. If still ambiguous, name the choices in your clarification.
+- Use the current question and field labels to distinguish an answer from navigation. Spoken numbers in a name/age/phone form are field data, not menu ordinals. Never submit a form while extracting new values; fill first and let the user review.
+${isRegistration ? '- For registration facts, return free_text and extract registration in this SAME response: name, age (1-120), phone (10 digits), gender (Male/Female/Other), abhaId (14 digits), aadhaar (12 digits), symptoms, confirmationMessage. Use empty strings for facts not spoken. Convert spoken digit words in the user language. Do not infer identity or invent missing digits. confirmationMessage must not repeat identity numbers. For pure navigation return the chosen action without filling fields.' : ''}
 - If uncertain, do not guess. Return out_of_context with a brief clarification in the selected language. Confidence must reflect ambiguity.
 - Return a short confirmation describing only the selected action, not an invented outcome.
 
 Message: Always return a concise, polite confirmation in the SELECTED language (${resolveLanguage(payload.language).name}), even if speech is mixed (e.g., "डॉक्टर अपॉइंटमेंट खोला जा रहा है।", "மருத்துவரை பார்க்க வழிநடத்துகிறது.", "Opening doctor appointment.", etc.).`;
 
 
-    let geminiErr = '';
-    let nvidiaErr = '';
-    let geminiResult = null;
-    let nvidiaResult = null;
-
-    if (key) {
+    const failures: string[] = [];
+    for (const provider of [...(key ? ['gemini'] : []), ...(nvidiaKey ? ['nvidia'] : [])]) {
       try {
-        const raw = await generate(key, model, prompt, schema, 0.05, 512, 'minimal', false);
-        geminiResult = parseModelJson(raw);
-        const matched = matchIntent(geminiResult?.intent, allowed);
-        if (matched) return json({ ...geminiResult, intent: matched });
-      } catch (error) {
-        geminiErr = error instanceof Error ? error.message : String(error);
-      }
+        const result = provider === 'gemini'
+          ? await navigationGemini(key!, prompt, schema)
+          : await navigationFallback(nvidiaKey!, prompt, schema);
+        const matched = matchIntent(result?.intent, allowed);
+        if (!matched || (matched === 'free_text' && !payload.expectsFreeText)) throw Error('Model selected an unavailable action');
+        return json({ ...result, intent: matched });
+      } catch (error) { failures.push(provider + ': ' + (error instanceof Error ? error.message : 'provider failed')); }
     }
-    if (nvidiaKey) {
-      try {
-        const raw = await generateWithNvidia(nvidiaKey, [
-          { role: 'system', content: `Classify navigation or form input. Return only JSON matching this schema: ${JSON.stringify(schema)}` },
-          { role: 'user', content: prompt },
-        ], { temperature: 0, max_tokens: 512, timeoutMs: 8000, responseFormat: { type: 'json_object' } });
-        nvidiaResult = extractJsonFromText(raw);
-        const matched = matchIntent(nvidiaResult?.intent, allowed);
-        if (matched) return json({ ...nvidiaResult, intent: matched });
-      } catch (e) {
-        nvidiaErr = e instanceof Error ? e.message : String(e);
-      }
-    }
+    console.error('Voice understanding unavailable:', failures);
+    return json({ error: 'Voice understanding is temporarily unavailable. Your speech was heard; please try again shortly.', code: 'VOICE_PROVIDER_UNAVAILABLE', retryable: true }, 503);
 
-    return json({ intent: 'out_of_context', confidence: 0, target: '', value: '', message: '', _debug: { geminiErr, nvidiaErr, geminiResult, nvidiaResult, allowed } });
   } catch (error) {
     console.error(error);
     return json({ error: error instanceof Error ? error.message : 'Voice service request failed' }, 500);

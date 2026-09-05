@@ -221,12 +221,56 @@ class AudioFeedbackEngine {
         Promise.resolve(audio.play()).then(() => clearTimeout(loadTimer)).catch(() => finish(false));
       });
     } catch (error) {
+      if (id !== this.activePlaybackId) return false;
       if (id === this.activePlaybackId) {
         this.stop();
       }
-      console.warn('ElevenLabs speech unavailable:', error.message);
+      console.warn('ElevenLabs speech unavailable, using browser speech fallback:', error.message);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        return this._speakWithBrowserSynth(rawText, lang);
+      }
       return false;
     }
+  }
+
+  _speakWithBrowserSynth(text, lang) {
+    if (isMutedPortal() || !text?.trim()) return Promise.resolve(false);
+    return new Promise(resolve => {
+      const id = this.activePlaybackId;
+      const finish = success => {
+        if (id !== this.activePlaybackId) return;
+        this.currentResolve = null;
+        this.isSpeaking = false;
+        this.currentUtterance = null;
+        this.onSpeakingChange?.(false);
+        resolve(success);
+      };
+      this.currentResolve = resolve;
+      try {
+        const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+        if (!synth) return finish(false);
+        synth.cancel();
+        this.synth = synth;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = this.rate || 0.95;
+        utterance.pitch = this.pitch || 1.0;
+        utterance.volume = this.volume || 1.0;
+        const langMap = {
+          en: 'en-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN',
+          bn: 'bn-IN', mr: 'mr-IN', gu: 'gu-IN', kn: 'kn-IN', ml: 'ml-IN'
+        };
+        utterance.lang = langMap[lang] || lang || 'en-IN';
+        this.isSpeaking = true;
+        this.currentUtterance = utterance;
+        this.onSpeakingChange?.(true);
+
+        utterance.onend = () => finish(true);
+        utterance.onerror = () => finish(false);
+        synth.speak(utterance);
+      } catch (e) {
+        finish(false);
+      }
+    });
   }
 
   // Stop all speech

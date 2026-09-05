@@ -317,7 +317,7 @@ export default function AuthPage() {
       setIsExtracting(true);
       let extracted = null;
       try {
-        extracted = await aiCommandEngine.extractRegistrationDetails(
+        extracted = recognitionResult.registration || await aiCommandEngine.extractRegistrationDetails(
           text,
           language || currentLang || 'en',
           {
@@ -428,7 +428,7 @@ export default function AuthPage() {
           speak?.(confirmParts.join(', '), language);
         }
       }
-    });
+    }, { context: { kind: 'registration', activeTab } });
     
     return () => {
       setDictationMode(false);

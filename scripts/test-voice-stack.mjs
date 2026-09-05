@@ -8,7 +8,7 @@ import { createPatientSelectionActions } from '../src/voicenav/PatientVoiceActio
 import { TranscriptRegistry } from '../src/voicenav/TranscriptRegistry.js';
 import { registrationFields } from '../src/voicenav/registrationFields.js';
 
-const source = (await fs.readFile('supabase/functions/voice-ai/index.ts', 'utf8')).replace(/^import .*;\s*/m, '');
+const source = (await fs.readFile('supabase/functions/voice-ai/NavigationModel.ts', 'utf8')).replace(/export /g, '') + '\n' + (await fs.readFile('supabase/functions/voice-ai/index.ts', 'utf8')).replace(/^import .*;\s*/gm, '');
 const { code } = await transform(source, { loader: 'ts', format: 'cjs' });
 function server(mockFetch, env = { ELEVENLABS_API_KEY: 'test', NVIDIA_API_KEY: 'test', GEMINI_API_KEY: 'test' }) {
   let handler;
@@ -49,7 +49,7 @@ test('Gemini receives contextual doctor navigation in all nine languages', async
     assert.match(url, /generativelanguage.googleapis.com/);
     const body = JSON.parse(options.body);
     assert.match(body.contents[0].parts[0].text, /Dr. Ravi/);
-    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'minimal');
+    assert.equal(body.generationConfig.thinkingConfig.thinkingLevel, 'low');
     return response({ candidates: [{ content: { parts: [{ text: JSON.stringify({ intent: 'select_doctor', confidence: .99, value: 'Dr. Ravi', target: '', message: '' }) }] } }] });
   });
   for (const language of languages) {
@@ -210,7 +210,7 @@ test('Gemini quota failure uses Llama instead of breaking navigation', async () 
   const call = server(async (url, options) => {
     if (url.includes('googleapis')) return new Response('quota', { status: 429 });
     fallback = true;
-    assert.equal(JSON.parse(options.body).model, 'meta/llama-4-maverick-17b-128e-instruct');
+    assert.equal(JSON.parse(options.body).model, 'meta/llama-3.2-11b-vision-instruct');
     return llama({ intent: 'login_abha', confidence: 1, value: '', target: '', message: 'Opening ABHA.' });
   });
   const data = await (await call({ action: 'intent', transcript: 'Open ABHA', expectsFreeText: true, actions: [{ intent: 'login_abha', description: 'Open ABHA login' }] })).json();
@@ -272,7 +272,7 @@ test('registration intent and extracted numeric details produce a form patch tog
 test('server rejects a model action absent from the live catalog', async () => {
   const call = server(async () => response({ candidates: [{ content: { parts: [{ text: JSON.stringify({ intent: 'inventedFeature', confidence: 1 }) }] } }] }), { GEMINI_API_KEY: 'test' });
   const result = await (await call({ action: 'intent', transcript: 'Open that', actions: [{ intent: 'newFeature', description: 'A newly available feature' }] })).json();
-  assert.equal(result.intent, 'out_of_context');
+  assert.equal(result.code, 'VOICE_PROVIDER_UNAVAILABLE');
 });
 
 const clinicalQuestion = (capturedField = 'duration', question = 'When did this start?') => ({ question, capturedField, isFinished: false, urgentReferral: false, responseType: 'single_choice', completionMessage: '', caseSummaryUpdate: {}, dashavidhaCoverage: {}, options: [{ text: 'Today', iconType: 'clock' }, { text: 'Earlier', iconType: 'clock' }] });
@@ -322,4 +322,64 @@ test('invented complete coverage cannot bypass ten actual patient answers', asyn
 test('clinical translation failures do not return unchanged text as success', async () => {
   const call = server(async () => new Response('unavailable', { status: 503 }));
   assert.equal((await call({ action: 'batch_translate', texts: ['When did it start?','Today','Earlier'], targetLanguage: 'hi', strict: true })).status, 503);
+});
+
+test('retired Gemini model is discovered and the working model is reused', async () => {
+  const calls = [];
+  const call = server(async (url, options) => {
+    calls.push(url);
+    if (url.includes('retired-model')) return new Response('not found', { status: 404 });
+    if (url.includes('pageSize=')) return response({ models: [
+      { name: 'models/gemini-new-flash-image', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-new-flash-lite', supportedGenerationMethods: ['generateContent'] },
+    ] });
+    assert.match(url, /gemini-new-flash-lite:generateContent$/);
+    assert.equal(url.includes('key='), false);
+    return gemini({ intent: 'newFeature', confidence: 1, message: 'Opening it.' });
+  }, { GEMINI_API_KEY: 'test', GEMINI_NAVIGATION_MODEL: 'retired-model' });
+  for (let i = 0; i < 2; i++) {
+    const result = await call({ action: 'intent', transcript: 'Open the new feature', actions: [{ intent: 'newFeature', description: 'New feature' }] });
+    assert.equal(result.status, 200); assert.equal((await result.json()).provider, 'gemini');
+  }
+  assert.equal(calls.length, 4);
+  assert.equal(calls.filter(url => url.includes('retired-model')).length, 1);
+});
+
+test('provider outage is a retryable service error, never unrecognized speech', async () => {
+  let calls = 0;
+  const call = server(async () => { calls++; return new Response('denied', { status: 401 }); }, { GEMINI_API_KEY: 'test' });
+  const result = await call({ action: 'intent', transcript: 'Open appointments', actions: [{ intent: 'appointments', description: 'Appointments' }], debug: true });
+  assert.equal(result.status, 503);
+  const data = await result.json();
+  assert.equal(data.code, 'VOICE_PROVIDER_UNAVAILABLE'); assert.equal(data.retryable, true);
+  assert.equal(data.intent, undefined); assert.equal(data._debug, undefined); assert.equal(calls, 1);
+});
+
+test('registration is understood and extracted in one Gemini request', async () => {
+  let calls = 0;
+  const call = server(async (url, options) => {
+    calls++;
+    const body = JSON.parse(options.body), prompt = body.contents[0].parts[0].text;
+    assert.match(prompt, /Current screen headings/); assert.match(prompt, /registration/);
+    assert.ok(body.generationConfig.responseJsonSchema.properties.registration);
+    return gemini({ intent: 'free_text', confidence: 1, registration: { name: 'Test Person', age: '35', gender: '', phone: '', aadhaar: '', abhaId: '', symptoms: '', confirmationMessage: 'Details filled.' } });
+  }, { GEMINI_API_KEY: 'test' });
+  const result = await (await call({ action: 'intent', transcript: 'My name is Test Person and I am thirty five', expectsFreeText: true, inputContext: { kind: 'registration' }, screen: { fields: [{ name: 'name' }, { name: 'age' }] } })).json();
+  assert.equal(result.intent, 'free_text'); assert.equal(result.registration.age, '35'); assert.equal(calls, 1);
+});
+
+test('Gemini text is read after optional thought parts', async () => {
+  const call = server(async () => response({ candidates: [{ content: { parts: [{ thought: true, text: 'Internal reasoning' }, { text: JSON.stringify({ intent: 'newAction', confidence: .99 }) }] } }] }), { GEMINI_API_KEY: 'test' });
+  const result = await (await call({ action: 'intent', transcript: 'Use that new action', actions: [{ intent: 'newAction', description: 'New action' }] })).json();
+  assert.equal(result.intent, 'newAction');
+});
+
+test('transient Gemini errors retry the same model without rediscovery', async () => {
+  const calls = [];
+  const call = server(async url => {
+    calls.push(url);
+    return calls.length === 1 ? new Response('temporarily busy', { status: 503 }) : gemini({ intent: 'reports', confidence: 1 });
+  }, { GEMINI_API_KEY: 'test' });
+  const result = await (await call({ action: 'intent', transcript: 'Show reports', actions: [{ intent: 'reports', description: 'Reports' }] })).json();
+  assert.equal(result.intent, 'reports'); assert.equal(calls.length, 2); assert.equal(calls[0], calls[1]);
 });

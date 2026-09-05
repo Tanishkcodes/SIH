@@ -92,10 +92,11 @@ class AICommandEngine {
       transcript, language: ctx.language, pageId: ctx.page, actions,
       routes: ctx.routes || [], expectsFreeText: ctx.expectsFreeText,
       recognitionAlternatives: ctx.recognitionAlternatives || [],
+      screen: ctx.screen, inputContext: ctx.inputContext, conversation: ctx.conversation,
     });
     if (result?.intent === 'out_of_context') return result;
     if (!validateIntent(result, actions, ctx.routes, ctx.expectsFreeText)) {
-      return { intent: 'out_of_context', confidence: 0, message: '' };
+      return { intent: 'out_of_context', confidence: 0, message: result?.message || '', reason: 'invalid_action' };
     }
     return result;
   }

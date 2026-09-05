@@ -78,7 +78,7 @@ class VoiceAIService {
     }
   }
 
-  async understand({ transcript, language, pageId, actions, routes, expectsFreeText, recognitionAlternatives = [] }) {
+  async understand({ transcript, language, pageId, actions, routes, expectsFreeText, recognitionAlternatives = [], screen, inputContext, conversation = [] }) {
     const response = await this._request({
       action: 'intent',
       transcript,
@@ -88,7 +88,8 @@ class VoiceAIService {
       routes,
       expectsFreeText: Boolean(expectsFreeText),
       recognitionAlternatives,
-    }, 'application/json', 12000);
+      screen, inputContext, conversation,
+    }, 'application/json', 22000);
     return response.json();
   }
 

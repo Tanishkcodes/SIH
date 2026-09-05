@@ -56,7 +56,7 @@ export function useClinicalInterview({ active, doctor, patient, isAyurvedic, ini
     const session = sessionRef.current;
     if (!session) return false;
     return session.state.started ? session.answer(text) : session.begin([], text);
-  }, { priority: 20 }) : undefined, [active, setOnTranscript]);
+  }, { priority: 20, context: { kind: 'clinical_answer' } }) : undefined, [active, setOnTranscript]);
 
   const last = state.messages.at(-1);
   useEffect(() => {
