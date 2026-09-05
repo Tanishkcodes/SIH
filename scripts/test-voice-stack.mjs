@@ -81,15 +81,18 @@ test('medical extraction strips invented values, medicines and diagnoses', async
 });
 
 test('Ayurveda cannot finish with missing Dashavidha coverage', async () => {
-  const call = server(async (url, options) => { assert.match(url, /nvidia/); assert.equal(JSON.parse(options.body).model, 'meta/llama-4-maverick-17b-128e-instruct'); return llama({ isFinished: true, question: '', options: [] }); });
-  assert.equal((await call({ action: 'anamnesis', isAyurvedic: true, questionCount: 15 })).status, 422);
+  const call = server(async () => llama({ isFinished: true, completionMessage: 'Complete', question: '', options: [] }), { NVIDIA_API_KEY: 'test' });
+  const result = await call({ action: 'anamnesis', isAyurvedic: true, questionCount: 15 });
+  assert.equal(result.status, 503);
+  assert.equal((await result.json()).retryable, true);
 });
 
 test('completed Dashavidha and emergency referral are accepted', async () => {
   const coverage = Object.fromEntries(['prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'].map(key => [key, 'answered']));
   for (const result of [{ dashavidhaCoverage: coverage }, { urgentReferral: true }]) {
-    const call = server(async () => llama({ isFinished: true, question: '', options: [], ...result }));
-    assert.equal((await call({ action: 'anamnesis', isAyurvedic: true })).status, 200);
+    const call = server(async () => llama({ isFinished: true, completionMessage: 'Please see your clinician.', question: '', options: [], ...result }), { NVIDIA_API_KEY: 'test' });
+    const history = result.urgentReferral ? [] : Object.keys(coverage).flatMap(field => [{ sender: 'ai', text: `Question ${field}`, field }, { sender: 'user', text: 'My answer' }]);
+    assert.equal((await call({ action: 'anamnesis', isAyurvedic: true, history })).status, 200);
   }
 });
 
@@ -270,4 +273,53 @@ test('server rejects a model action absent from the live catalog', async () => {
   const call = server(async () => response({ candidates: [{ content: { parts: [{ text: JSON.stringify({ intent: 'inventedFeature', confidence: 1 }) }] } }] }), { GEMINI_API_KEY: 'test' });
   const result = await (await call({ action: 'intent', transcript: 'Open that', actions: [{ intent: 'newFeature', description: 'A newly available feature' }] })).json();
   assert.equal(result.intent, 'out_of_context');
+});
+
+const clinicalQuestion = (capturedField = 'duration', question = 'When did this start?') => ({ question, capturedField, isFinished: false, urgentReferral: false, responseType: 'single_choice', completionMessage: '', caseSummaryUpdate: {}, dashavidhaCoverage: {}, options: [{ text: 'Today', iconType: 'clock' }, { text: 'Earlier', iconType: 'clock' }] });
+const gemini = value => response({ candidates: [{ content: { parts: [{ text: JSON.stringify(value) }] } }] });
+
+test('Gemini clinical responses work with no NVIDIA key and preserve all patient complaints', async () => {
+  const call = server(async (url, options) => {
+    assert.match(url, /googleapis/);
+    const prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    assert.match(prompt, /Chest discomfort; Breathlessness/); assert.match(prompt, /penicillin/);
+    return gemini(clinicalQuestion());
+  }, { GEMINI_API_KEY: 'test' });
+  const result = await call({ action: 'anamnesis', disease: 'Chest discomfort; Breathlessness', patient: { age: 72, allergies: ['penicillin'] } });
+  assert.equal(result.status, 200); assert.equal((await result.json()).options.length, 2);
+});
+
+test('a no-option clinical draft is repaired by the fallback provider', async () => {
+  let calls = 0;
+  const call = server(async url => {
+    calls++;
+    if (url.includes('googleapis')) return gemini({ ...clinicalQuestion(), options: [] });
+    return llama(clinicalQuestion());
+  });
+  const result = await call({ action: 'anamnesis', disease: 'Headache' });
+  assert.equal(result.status, 200); assert.equal(calls, 2);
+});
+
+test('all ten Ayurveda questions are generated, answered and grounded before completion', async () => {
+  const fields = ['prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'];
+  const history = []; let index = 0;
+  const call = server(async () => gemini(index < fields.length ? clinicalQuestion(fields[index], `Patient-friendly question ${index + 1}`) : { isFinished: true, completionMessage: 'Your history is ready.', options: [], question: '' }), { GEMINI_API_KEY: 'test' });
+  for (; index < fields.length; index++) {
+    const result = await (await call({ action: 'anamnesis', isAyurvedic: true, history })).json();
+    assert.equal(result.isFinished, false);
+    assert.equal(result.dashavidhaCoverage[fields[index]], 'pending');
+    history.push({ sender: 'ai', field: result.capturedField, text: result.question }, { sender: 'user', text: 'Not sure' });
+  }
+  const final = await (await call({ action: 'anamnesis', isAyurvedic: true, history })).json();
+  assert.equal(final.isFinished, true); assert.equal(Object.values(final.dashavidhaCoverage).filter(status => status !== 'pending').length, 10);
+});
+
+test('invented complete coverage cannot bypass ten actual patient answers', async () => {
+  const call = server(async () => gemini({ isFinished: true, completionMessage: 'Complete', dashavidhaCoverage: { prakriti: 'answered' } }), { GEMINI_API_KEY: 'test' });
+  assert.equal((await call({ action: 'anamnesis', isAyurvedic: true, questionCount: 10 })).status, 503);
+});
+
+test('clinical translation failures do not return unchanged text as success', async () => {
+  const call = server(async () => new Response('unavailable', { status: 503 }));
+  assert.equal((await call({ action: 'batch_translate', texts: ['When did it start?','Today','Earlier'], targetLanguage: 'hi', strict: true })).status, 503);
 });

@@ -2376,8 +2376,9 @@ export default function PatientDashboard() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [selectedBookingSlot, setSelectedBookingSlot] = useState('');
-  const [bookingCaseSymptoms, setBookingCaseSymptoms] = useState(['Fever & Chills']);
+  const [bookingCaseSymptoms, setBookingCaseSymptoms] = useState([]);
   const [bookingCaseNotes, setBookingCaseNotes] = useState('');
+  const [bookingIntakeSession, setBookingIntakeSession] = useState(null);
   const [bookingReports, setBookingReports] = useState([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [liveSlots, setLiveSlots] = useState({ morning: [], afternoon: [], evening: [], onLeave: false, leaveReason: '' });
@@ -5422,17 +5423,20 @@ export default function PatientDashboard() {
                   {/* ─────────────────────────────────────────────────────────
                       STEP 3: CASE / SYMPTOMS DETAILS (Interactive AI Clinical Anamnesis)
                       ───────────────────────────────────────────────────────── */}
-                  {bookingStep === 3 && (
+                  {bookingFlowView === 'booking_steps' && bookingStep === 3 && selectedDoctorObj && bookingHospital && (
                     <ClinicalAnamnesisChat
+                      active
                       doctor={selectedDoctorObj}
                       hospital={bookingHospital}
                       patient={session.patient}
                       initialSymptoms={bookingCaseSymptoms}
                       initialNotes={bookingCaseNotes}
+                      initialSession={bookingIntakeSession}
                       language={currentLang || 'en'}
-                      onUpdateCaseDetails={({ symptoms, notes }) => {
+                      onUpdateCaseDetails={({ symptoms, notes, intakeSession }) => {
                         setBookingCaseSymptoms(symptoms || []);
                         setBookingCaseNotes(notes || '');
+                        setBookingIntakeSession(intakeSession || null);
                       }}
                       onPrevious={() => setBookingStep(2)}
                       onNext={() => setBookingStep(4)}

@@ -21,7 +21,8 @@ export function captureControls(root = document) {
       const label = controlLabel(element);
       const container = element.closest('[data-voice-context], article, li, section, [role="tabpanel"]');
       const context = container?.getAttribute('data-voice-context') || container?.querySelector('h1,h2,h3,h4')?.textContent || '';
-      return { element, label, description: [label, context && `Context: ${context.trim()}`].filter(Boolean).join(' | ') };
+      const optionIndex = element.getAttribute('data-voice-option-index');
+      return { element, label, description: [label, optionIndex && `Answer option ${optionIndex}`, context && `Context: ${context.trim()}`].filter(Boolean).join(' | ') };
     }).filter(control => control.label)
     .map((control, index) => ({ ...control, intent: `activate_${index}` }));
 }
@@ -30,7 +31,7 @@ export function buildActions(pageCommands = {}, globalCommands = {}, controls = 
   const registered = { ...globalCommands, ...pageCommands };
   return [
     ...Object.entries(registered).map(([intent, description]) => ({ intent, description: Array.isArray(description) ? description.join(' | ') : String(description) })),
-    ...controls.map(({ intent, description }) => ({ intent, description })),
+    ...controls.map(({ intent, description, label }) => ({ intent, description, label })),
   ];
 }
 

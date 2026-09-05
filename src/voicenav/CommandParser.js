@@ -75,7 +75,7 @@ class CommandParser {
     const registered = { ...this.pageCommands.__global__, ...this.pageCommands[currentPage] };
     const actions = context.actions || Object.entries(registered).map(([intent, description]) => ({ intent, description: String(description) }));
     // Only exact, unique labels bypass the model. Natural phrasing always gets context.
-    const matches = actions.filter(action => normalize(action.description) === input);
+    const matches = actions.filter(action => normalize(action.label || action.description) === input);
     if (matches.length === 1) return { intent: matches[0].intent, confidence: 1, raw: transcript };
     const commands = Object.fromEntries(actions.map(action => [action.intent, action.description]));
     const result = await aiCommandEngine.parseIntent(transcript, commands, {}, {

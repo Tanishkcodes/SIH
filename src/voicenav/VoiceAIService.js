@@ -161,6 +161,12 @@ class VoiceAIService {
     return response.json();
   }
 
+  async translateClinical(texts, targetLanguage) {
+    // A failed translation must not be reported as translated source text.
+    const response = await this._request({ action: 'batch_translate', texts, targetLanguage, strict: true }, 'application/json', 16000);
+    return response.json();
+  }
+
   async analyzeReport(image, fileName = '') {
     // Keep provider credentials and validation on the server. A service error
     // must reach the caller, never become fabricated clinical data.

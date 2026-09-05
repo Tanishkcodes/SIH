@@ -13,6 +13,20 @@ Deploy the updated `supabase/functions/voice-ai` function along with the fronten
 
 Verification: `node --test scripts/test-voice-stack.mjs scripts/test-voice-navigation.mjs` and `npm run build`.
 
+## Adaptive clinical interview
+
+`ClinicalInterviewSession` owns canonical complaint/answer history, the current model-generated question, recovery and translation. `useClinicalInterview` connects it to the existing option-card UI and the voice transcript registry. Booking state retains the interview when moving between steps; no patient transcript is persisted in browser storage by this component.
+
+The `anamnesis` server action now tries Gemini, then NVIDIA, then a repaired Gemini draft. Questions with missing/duplicate options, repeated questions and premature Ayurveda completion are rejected and repaired. The client preserves the accepted answer and automatically retries transient failures with a delay up to 30 seconds. It shows calm recovery status rather than provider errors or a manual retry button. A total outage cannot produce a genuine next question; it never fabricates one or marks the interview complete.
+
+Modern-medicine intake has no fixed question count. Its prompt asks the model to choose the next relevant uncertainty from the selected complaints, patient context and answers, and decide when the pre-consultation history is sufficient. Ayurveda requires one generated patient-facing question per Dashavidha dimension. The server derives coverage from actual question/answer pairs, not a claimed model count; unknown/refused answers are accepted. Immediate emergency escalation takes priority. Patient self-report is not presented as a clinician examination or confirmed diagnosis.
+
+Question text and its 2–8 generated answer cards are translated together before older history. Original answers remain intact; displayed patient and assistant messages are localized. Translation uses a strict endpoint and per-session cache, and late responses from an old language/reset cannot overwrite the current question. Native input always permits answers outside the cards. Voice responses use the same session controller; unique spoken card labels can execute locally, and natural answers use the navigation classifier.
+
+Clinical verification: `node --test scripts/test-clinical-interview.mjs scripts/test-clinical-ui.mjs scripts/test-voice-stack.mjs scripts/test-voice-navigation.mjs`. These are simulated-provider and rendered-markup tests; they do not establish clinical accuracy or live multilingual speech performance. Deploy the frontend and updated Supabase function together, then verify with synthetic patient scenarios before real use.
+
+Protocol references: [NICE patient communication and shared decision-making](https://www.nice.org.uk/guidance/ng197/chapter/recommendations), [AYUSH Ayurveda guidelines and Dashavidha assessment](https://ayushportal.nic.in/pdf/ayurveda-guidelines.pdf). These inform communication and assessment boundaries; they are not validation of generated questions.
+
 ## Navigation contract
 
 New labeled buttons, links and tabs are discovered on the next utterance, including repeated labels. Add `data-voice-context` to cards to distinguish repeated controls, e.g. a hospital's name. Use native buttons or appropriate semantic roles and accessible labels. Hidden, disabled, inert and background controls behind semantic dialogs are excluded. Custom canvas controls require an explicitly registered action.

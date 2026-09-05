@@ -90,7 +90,7 @@ async function generateWithNvidia(
   } = {}
 ) {
   const url = "https://integrate.api.nvidia.com/v1/chat/completions";
-  const model = options.model || Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-4-maverick-17b-128e-instruct';
+  const model = options.model || Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.1-8b-instruct';
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -157,7 +157,7 @@ function pcmToWav(pcmBuffer: Uint8Array, sampleRate = 24000, numChannels = 1, bi
 }
 
 const CLINICAL_LANGUAGES: Record<string, { code: string; name: string; script: string }> = {
-  en: { code: 'en', name: 'English', script: 'Latin' },
+  en: { code: 'en', name: 'English', script: 'English' },
   hi: { code: 'hi', name: 'Hindi', script: 'Devanagari' },
   ta: { code: 'ta', name: 'Tamil', script: 'Tamil' },
   te: { code: 'te', name: 'Telugu', script: 'Telugu' },
@@ -424,6 +424,20 @@ ${JSON.stringify(texts)}
 Return ONLY a valid JSON object with:
 {"translations": ["...", "..."]}`;
 
+      if (payload.strict) {
+        // Active clinical question/options are one atomic translation. Do not
+        // claim untranslated source text is a successful language switch.
+        for (const provider of [...(key ? ['gemini'] : []), ...(nvidiaKey ? ['nvidia'] : [])]) {
+          try {
+            const parsed = provider === 'gemini'
+              ? parseModelJson(await generate(key!, model, prompt, schema, 0.05, 4000, 'minimal', true))
+              : extractJsonFromText(await generateWithNvidia(nvidiaKey!, [{ role: 'user', content: prompt }], { temperature: 0.05, max_tokens: 4000, timeoutMs: 6500, responseFormat: { type: 'json_object' } }));
+            if (Array.isArray(parsed?.translations) && parsed.translations.length === texts.length && parsed.translations.every((text: any) => typeof text === 'string' && text.trim())) return json(parsed);
+          } catch { /* try the next provider */ }
+        }
+        return json({ error: 'Translation temporarily unavailable', retryable: true }, 503);
+      }
+
       // 1. Try NVIDIA NIM if available
       if (nvidiaKey) {
         try {
@@ -535,167 +549,165 @@ Transcript: ${JSON.stringify(String(payload.transcript || '').slice(0, 2000))}`;
     }
 
     if (action === 'anamnesis') {
+      const dimensions = ['prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'];
+      const fields = ['notes','location','spread','nature','severity','duration','triggers','medications','associatedSymptoms','redFlags', ...dimensions];
+      const history = Array.isArray(payload.history) ? payload.history.slice(-100) : [];
+      const patient = payload.patient && typeof payload.patient === 'object' ? payload.patient : {};
+      const facts = payload.caseSummary && typeof payload.caseSummary === 'object' ? payload.caseSummary : {};
+      const language = resolveLanguage(payload.language);
+      const discovery = payload.phase === 'chief_complaint';
+      // Only a question actually followed by a patient answer counts as covered.
+      // Model-supplied coverage cannot skip the ten patient-facing questions.
+      const answered = new Set<string>();
+      for (let i = 0; i < history.length - 1; i++) {
+        const q = history[i], answer = history[i + 1];
+        if (q.sender === 'ai' && dimensions.includes(q.field) && answer.sender === 'user' && String(answer.text || '').trim()) answered.add(q.field);
+      }
+      const missing = dimensions.filter(field => !answered.has(field));
       const schema = { type: 'object', properties: {
         question: { type: 'string' },
         responseType: { type: 'string', enum: ['single_choice','multiple_choice','free_text','scale'] },
-        options: { type: 'array', minItems: 0, maxItems: 8, items: { type: 'object', properties: {
-          text: { type: 'string' }, iconType: { type: 'string', enum: ['target','chest','back','shoulder','question','clock','flame','pill','moon','wind','thermometer','stomach','headache','cough','bodypain','leaf'] },
-        }, required: ['text','iconType'], additionalProperties: false }},
-        isFinished: { type: 'boolean' }, completionMessage: { type: 'string' },
-        capturedField: { type: 'string', enum: ['notes','location','spread','nature','severity','duration','triggers','medications','associatedSymptoms','redFlags','prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'] },
-        caseSummaryUpdate: { type: 'object', properties: {
-          location: { type: 'string' }, spread: { type: 'string' }, nature: { type: 'string' }, severity: { type: 'string' },
-          duration: { type: 'string' }, triggers: { type: 'string' }, medications: { type: 'string' },
-          associatedSymptoms: { type: 'string' }, redFlags: { type: 'string' },
-          prakriti: { type: 'string' }, vikriti: { type: 'string' }, sara: { type: 'string' },
-          samhanana: { type: 'string' }, pramana: { type: 'string' }, satmya: { type: 'string' },
-          satva: { type: 'string' }, aharaShakti: { type: 'string' }, vyayamaShakti: { type: 'string' },
-          vaya: { type: 'string' }, notes: { type: 'string' },
-        }, additionalProperties: false },
-      }, required: ['question','responseType','options','isFinished','completionMessage','capturedField','caseSummaryUpdate'], additionalProperties: false };
-      const patient = payload.patient && typeof payload.patient === 'object' ? payload.patient : {};
-      const caseSummary = payload.caseSummary && typeof payload.caseSummary === 'object' ? payload.caseSummary : {};
-      const questionCount = Math.max(0, Math.min(30, Number(payload.questionCount || 0)));
-      const phase = payload.phase === 'chief_complaint' ? 'chief_complaint' : 'interview';
-      const targetLanguage = resolveLanguage(payload.language || payload.targetLanguage);
-      const languageCode = targetLanguage.code;
-      const prompt = `You are a world-renowned AI Clinical Diagnostic & Anamnesis Specialist for Swasthya Setu Indian healthcare kiosks.
-Your mission is to conduct a deeply intelligent, adaptive, empathetic clinical intake tailored specifically to the patient, their disease, and the doctor's exact medical specialty.
+        options: { type: 'array', maxItems: 8, items: { type: 'object', properties: {
+          text: { type: 'string' }, iconType: { type: 'string', enum: ['target','chest','back','shoulder','question','clock','flame','pill','moon','wind','thermometer','stomach','headache','cough','bodypain','leaf'] }
+        }, required: ['text','iconType'], additionalProperties: false } },
+        isFinished: { type: 'boolean' }, urgentReferral: { type: 'boolean' }, completionMessage: { type: 'string' },
+        capturedField: { type: 'string', enum: fields },
+        caseSummaryUpdate: { type: 'object', properties: Object.fromEntries(fields.map(field => [field, { type: 'string' }])), additionalProperties: false },
+        dashavidhaCoverage: { type: 'object', properties: Object.fromEntries(dimensions.map(field => [field, { type: 'string', enum: ['pending','answered','declined','examination-needed'] }])), additionalProperties: false },
+      }, required: ['question','responseType','options','isFinished','urgentReferral','completionMessage','capturedField','caseSummaryUpdate','dashavidhaCoverage'], additionalProperties: false };
+      const isAyurvedic = Boolean(payload.isAyurvedic);
+      const userAnswersCount = history.filter((m: any) => m.sender === 'user' && m.field).length;
+      const shouldFinishNow = !isAyurvedic && userAnswersCount >= 3;
 
-Context:
-- Interview phase: ${phase === 'chief_complaint' ? 'CHIEF COMPLAINT DISCOVERY. The patient has not described the problem yet.' : 'ADAPTIVE CLINICAL HISTORY'}.
-- REQUIRED OUTPUT LANGUAGE: ${targetLanguage.name} (${languageCode}), written in the ${targetLanguage.script} script.
-- CRITICAL ZERO-LANGUAGE-MIXING MANDATE: The question, EVERY option text, and completionMessage MUST be 100% purely in ${targetLanguage.name} (${targetLanguage.script}) ONLY. NEVER mix English sentences, questions, or option cards (such as "During this...", "Normal energy...", "Restless sleep...") when the patient has chosen ${targetLanguage.name}. Widely understood regional medical terms written in ${targetLanguage.script} script are expected.
-- Attending Doctor: ${payload.doctorName || 'Doctor'}; Specialty: ${payload.doctorSpecialty || 'General Medicine'}.
-- Care System: ${payload.isAyurvedic ? 'AYURVEDA / AYUSH (Complete Classical Dashavidha Pariksha / दशविध परीक्षा)' : 'ALLOPATHY / MODERN MEDICINE (Advanced SOCRATES & Differential Diagnostics)'}.
-- Patient context: age ${JSON.stringify(String(patient.age || 'not provided').slice(0, 20))}, gender ${JSON.stringify(String(patient.gender || 'not provided').slice(0, 30))}. Never infer unprovided facts.
-- Patient's Chief Complaint: ${JSON.stringify(payload.disease || 'General discomfort')}.
-- Structured facts already collected: ${JSON.stringify(caseSummary)}.
-- Clinical questions already answered: ${questionCount}.
-- Prior History: ${JSON.stringify((payload.history || []).slice(-80))}.
-- Patient's Latest Response: ${JSON.stringify(String(payload.latestInput || '').slice(0, 1500))}.
+      const clinicalProtocol = isAyurvedic
+        ? `AYURVEDA PROTOCOL (Dashavidha Pariksha):
+Ask exactly one patient-friendly, disease-adapted question for each remaining dimension in the most useful order: Prakriti, Vikriti, Sara, Samhanana, Pramana, Satmya, Satva, Ahara Shakti, Vyayama Shakti, Vaya.
+Answered: ${JSON.stringify([...answered])}. Remaining: ${JSON.stringify(missing)}.
+capturedField MUST be one of the remaining dimensions. Once none remain, set isFinished=true.`
+        : shouldFinishNow
+          ? `INTAKE COMPLETE:
+The patient has provided ${userAnswersCount} essential clinical answers for "${payload.disease || 'General Symptoms'}".
+You MUST finalize the consultation intake now:
+- isFinished: true
+- question: ""
+- options: []
+- completionMessage: "Thank you. I have prepared your clinical briefing for Dr. ${payload.doctorName || 'the doctor'}. You can now upload previous medical reports or continue to confirm your appointment." (in ${language.name})
+- caseSummaryUpdate: compile a concise, doctor-ready SBAR summary into 'notes':
+  "• Complaint: [disease & duration]
+• Clinical Features: [character, severity, radiation, triggers]
+• Red Flags: [pertinent positives/negatives screened]
+• Prior Treatment: [medications taken & response]"`
+          : `DOCTOR-GRADE CLINICAL REASONING PROTOCOL:
+You are an expert Clinical Triage Specialist assisting an OPD physician (${payload.doctorSpecialty || 'General Physician'}).
+Your objective is to extract the exact high-yield clinical facts (History of Present Illness - HPI) that a doctor needs to reach an accurate diagnosis and treatment plan, saving valuable consultation time.
 
-========================================================================
-[1. AYURVEDIC CLINICAL PROTOCOL: COMPLETE DASHAVIDHA PARIKSHA (दशविध परीक्षा)]
-========================================================================
-For Ayurvedic consultations, dynamically examine the exact 10 classical parameters from Charaka Samhita in the context of the patient's illness:
-1. Prakriti (प्रकृति): Natural Doshic constitution (Vataja, Pittaja, Kaphaja, or Dwandwaja).
-2. Vikriti (विकृति): Current pathological Doshic vitiation and disease severity in this illness.
-3. Sara (सार): Quality and health of Dhatus/tissues (Rasa, Rakta, Mamsa, Meda, Asthi, Majja, Shukra, Sattva).
-4. Samhanana (संहनन): Physical compactness and structural firmness of the body frame.
-5. Pramana (प्रमाण): Body measurements, height/weight balance, and structural proportions.
-6. Satmya (सात्म्य): Habituation — what foods, habits, and climates the body tolerates or reacts to.
-7. Satva (सत्त्व): Mental strength, emotional fortitude, stress threshold, and sleep (Nidra).
-8. Ahara Shakti (आहार शक्ति): Intake capacity (Abhyavaharana) and digestive fire (Jarana / Agni: Sama, Manda, Tikshna, Vishama).
-9. Vyayama Shakti (व्यायाम शक्ति): Physical capacity, work endurance, and fatigue limit.
-10. Vaya (वय): Age stage (Bala, Madhyama, Vriddha) and chronological impact.
+DECIDE THE NEXT HIGHEST-YIELD QUESTION BASED ON CLINICAL STAGE:
 
-*Dynamic Disease Rule for Ayurveda*: Adapt the Dashavidha questions directly to the illness. For example:
-- If joint/back pain: Evaluate Vata-Kaphaja Vikriti, Asthi-Majja Sara, Krura Kostha, and Vyayama Shakti limitation.
-- If acidity/stomach: Evaluate Pitta-Vataja Vikriti, Tikshna/Amlapitta Agni, and Amla-Lavana Satmya.
-- If skin disease: Evaluate Rakta-Twak Sara, Pitta-Kapha Vikriti, and Katu-Ushna Ahara triggers.
+Stage 1 — Exact Clinical Characterization (If onset/character not yet established):
+- For PAIN (Headache, Abdomen, Chest, Joint, Back):
+  * Headache: Ask pain type (one-sided pulsating/throbbing migraine, tight band-like tension, cluster) and triggers (screen, stress, lack of sleep).
+  * Stomach Pain: Ask exact pain nature (burning acidity in epigastrium, sharp colicky cramps, dull lower ache) and relation to meals (empty stomach vs after eating).
+  * Chest Discomfort: Ask character (heaviness/pressure vs sharp stabbing on deep breath) and radiation (left arm, jaw, back).
+  * Joint/Body Pain: Ask specific joints involved, morning stiffness duration (>30 min vs brief), or post-viral fatigue.
+- For FEVER / INFECTION:
+  * Ask temperature range (>102°F high grade vs low grade), presence of chills/shivering (rigors), and pattern (continuous vs evening spikes).
+- For RESPIRATORY (Cough, Cold, Breathlessness):
+  * Ask cough type (dry hacking vs wet productive with yellow/green phlegm or blood) and breathing comfort when lying down or walking.
+- For ANY CUSTOM COMPLAINT typed by user:
+  * Ask the single most critical diagnostic feature specific to that condition (e.g. for Dengue: eye pain, rash, bleeding gums; for UTI: burning, frequency; for Allergy: swelling, itching).
 
-========================================================================
-[2. CLINICAL INTAKE PROTOCOL: DYNAMIC CONDITION-SPECIFIC MEDICAL REASONING]
-========================================================================
-Diagnostically adapt the questions and selectable touch options specifically to the clinical nature of the patient's stated disease (${JSON.stringify(payload.disease)}):
+Stage 2 — Associated Features & Critical Red Flags (Rule out emergencies):
+- Screen for pertinent associated symptoms and alarm signs:
+  * Sudden "thunderclap" headache, neck stiffness, or vision changes.
+  * Chest heaviness with breathlessness or cold sweating.
+  * Vomiting blood, black tarry stools, or inability to keep liquids down.
+  * High fever with altered consciousness or petechial rash.
+  * If acute life-threatening signs are detected: set urgentReferral=true.
 
-A. ONCOLOGY / CANCER / TUMOR / MALIGNANCY:
-   NEVER ask generic acute pain questions ("does it radiate", "how is digestion") unless pain is the stated primary complaint!
-   Ask the highest-yield oncological questions with highly relevant, empathetic options:
-   1. Primary Anatomical Site & Type (e.g., Breast, Lung, GI/Colon, Head & Neck, Blood/Leukemia, Prostate, Gynecological, Brain, etc.).
-   2. Diagnostic Confirmation Status (Biopsy/Histopathology confirmed, Suspected on CT/PET scan, Under initial investigation, Remission/surveillance).
-   3. Current Treatment Regimen & Stage (Currently on Chemotherapy or Radiation, Surgery completed, Awaiting oncology consultation, Seeking second opinion).
-   4. Current Active Symptoms & Quality of Life (Significant unexplained weight loss, intractable pain, chemotherapy-induced nausea/fatigue, shortness of breath, no acute distress).
+Stage 3 — Relieving Factors & Medications Already Taken:
+- Ask what medications or home remedies the patient has taken for this episode (e.g., Paracetamol, painkillers, antacids, antibiotics) and whether they provided relief.`;
 
-B. CHRONIC METABOLIC & SYSTEMIC (Diabetes, Hypertension, Thyroid, Kidney, Liver):
-   Focus on disease control, duration, latest numbers (blood sugar, BP, creatinine), medication adherence (insulin vs oral pills), and target-organ complications (neuropathy, vision, chest tightness, swelling).
+      const prompt = `You are an expert Clinical Consultation AI for Swasthya Setu Indian healthcare kiosks.
+Respond purely and strictly in ${language.name}. The question, options, and completionMessage must all be written in natural, fluent ${language.name}. Never respond in Latin or other languages.
+Context: ${JSON.stringify({ phase: discovery ? 'chief complaint discovery' : 'interview', doctor: payload.doctorName, specialty: payload.doctorSpecialty, careSystem: isAyurvedic ? 'Ayurveda' : 'modern medicine', patient, selectedComplaintsAndDetails: payload.disease, knownFacts: facts, history, latestAnswer: payload.latestInput })}
 
-C. CARDIOVASCULAR & RESPIRATORY (Chest pain, Breathlessness, Asthma, Palpitations):
-   Focus on exertional triggers, orthopnea, nocturnal dyspnea, radiation to jaw/left arm, inhaler usage, sputum/cough, pedal edema.
+${clinicalProtocol}
 
-D. ACUTE SYMPTOMS & PAIN (Headache, Abdominal pain, Joint pain, Back pain, Fever):
-   Apply SOCRATES (Site, onset, character, radiation, severity, aggravating/relieving factors).
-
-E. AYURVEDA / AYUSH:
-   Adapt Dashavidha to the illness: Agni/Ahara for digestive/metabolic; Vata-Vikriti/Asthi for musculoskeletal; Rakta/Pitta for skin/liver; Ojas/Bala for chronic/oncological weakness.
-
-========================================================================
-[MANDATORY GENERATION RULES]
-========================================================================
-1. For chief_complaint phase, ask what brings the patient to this doctor and offer a VARIABLE number (2-8) of likely complaints appropriate to this doctor's specialty, care system, age and gender. These are suggestions, not diagnoses. Set isFinished false.
-2. During the interview, FIRST perform a clinical sufficiency decision using the complaint, patient context, structured facts, and full prior history. If the doctor has enough information for a useful pre-consultation history, set isFinished true NOW. For Ayurveda, completion additionally requires all ten Dashavidha dimensions recorded as answered, declined, or requiring clinician examination.
-3. Only if a material, complaint-specific uncertainty remains, ask the single highest-yield unanswered question. NEVER repeat, rephrase, or ask for information already present in the structured facts or history. Avoid exhaustive review-of-systems, low-value lifestyle questions, and diagnosis confirmation.
-4. You decide how many questions are clinically necessary based on complexity—not a quota. A simple, low-risk complaint should usually finish after 3-5 focused answers. Once duration/onset, severity, the main complaint-specific characteristic, and important associated symptoms/red flags are known, normally FINISH; do not separately exhaust timing, triggers, medication, lifestyle, and every protocol category unless one is materially important for this exact complaint. A complex or high-risk complaint may need more. Continue only when the answer could materially change urgency or the doctor's immediate consultation. For modern medicine, after 8 answers finish unless a specific unanswered red flag remains. For Ayurveda do not apply a question-count cutoff before Dashavidha coverage is complete.
-5. For Ayurveda ALL TEN Dashavidha dimensions are mandatory before routine completion. Ask patient-friendly questions for each missing dimension, tailored to complaint and age. Combine related questions only if every dimension is explicitly addressed. Never infer dosha, tissue quality or examination findings from self-report. Record unknown, declined, or examination-needed explicitly; do not force answers. Emergency care takes priority over completing the questionnaire.
-6. Choose responseType to fit the question:
-   - single_choice for mutually exclusive answers;
-   - multiple_choice when several symptoms may coexist;
-   - scale for severity/frequency scales;
-   - free_text only for a finished response; every unfinished question must remain touch-accessible.
-7. For EVERY unfinished question, generate a VARIABLE number of 2-8 concise, clinically meaningful touch options in ${targetLanguage.name}. Use 2-4 for simple questions and more only when genuinely useful. Never pad the list to a quota. Options must directly answer the current question and must not repeat earlier choices. The UI separately always permits typing or speaking a different answer.${payload.requireTouchOptions ? ' A previous draft lacked usable touch choices, so ensure this response contains them.' : ''}
-8. dashavidhaCoverage must represent actual prior patient answers, never planned questions. A dimension can be examination-needed only after asking its patient-facing history question and recording that examination is still required. Include all ten statuses every turn; copy prior coverage from structured facts. urgentReferral must be true only when immediate emergency care is warranted. For ordinary patients prioritize age-appropriate questions, medications/allergies, relevant history, pregnancy only when applicable, and disease-specific danger signs. Accept unrestricted answers, corrections, multiple symptoms, uncertainty and refusal. Record negations and unknowns faithfully. Never turn patient narrative into an asserted diagnosis.
-8. Set capturedField to the case-sheet field chiefly answered by the question. Use caseSummaryUpdate to extract all structured facts learned from the latest response; never fabricate.
-9. If isFinished is true, return an empty question and empty options, set responseType to free_text, and give a concise completionMessage. If acute emergency danger signs are identified (e.g. acute coronary syndrome, severe respiratory distress, acute abdomen), the completionMessage must urgently advise immediate emergency care.`;
-
-      // 1. Try NVIDIA Llama 3.2 11B Vision Instruct first
-      if (nvidiaKey) {
-        try {
-          const systemInstruction = `You are an expert Clinical Diagnostic & Anamnesis Specialist for Swasthya Setu Indian healthcare kiosks.
-Your mission is to conduct a deeply intelligent, adaptive, empathetic clinical intake tailored specifically to the patient, their disease, and the doctor's exact medical specialty.
-CRITICAL ZERO-LANGUAGE-MIXING MANDATE:
-The question, EVERY option text, and completionMessage MUST be 100% purely in ${targetLanguage.name} (${targetLanguage.script}) ONLY. NEVER mix English sentences, questions, or option cards when the patient has chosen ${targetLanguage.name}.
-
-Return ONLY a valid JSON object matching this schema:
+Every unfinished response MUST be a valid JSON object matching:
 {
-  "dashavidhaCoverage": { "prakriti": "answered|declined|examination-needed|pending", "vikriti": "answered|declined|examination-needed|pending", "sara": "answered|declined|examination-needed|pending", "samhanana": "answered|declined|examination-needed|pending", "pramana": "answered|declined|examination-needed|pending", "satmya": "answered|declined|examination-needed|pending", "satva": "answered|declined|examination-needed|pending", "aharaShakti": "answered|declined|examination-needed|pending", "vyayamaShakti": "answered|declined|examination-needed|pending", "vaya": "answered|declined|examination-needed|pending" },
-  "urgentReferral": false,
-  "question": "string purely in ${targetLanguage.name}",
-  "responseType": "single_choice" | "multiple_choice" | "free_text" | "scale",
+  "question": "one clear question in ${language.name}",
   "options": [
-    { "text": "string purely in ${targetLanguage.name}", "iconType": "target" | "chest" | "back" | "shoulder" | "question" | "clock" | "flame" | "pill" | "moon" | "wind" | "thermometer" | "stomach" | "headache" | "cough" | "bodypain" | "leaf" }
+    {"text": "Option 1 in ${language.name}", "iconType": "target"},
+    {"text": "Option 2 in ${language.name}", "iconType": "chest"}
   ],
-  "isFinished": boolean,
-  "completionMessage": "string purely in ${targetLanguage.name}",
-  "capturedField": "location" | "spread" | "nature" | "severity" | "duration" | "triggers" | "medications" | "associatedSymptoms" | "redFlags" | "notes" | "prakriti" | "vikriti" | "sara" | "samhanana" | "pramana" | "satmya" | "satva" | "aharaShakti" | "vyayamaShakti" | "vaya",
-  "caseSummaryUpdate": {
-    "prakriti"?: string,
-    "vikriti"?: string,
-    "sara"?: string,
-    "samhanana"?: string,
-    "pramana"?: string,
-    "satmya"?: string,
-    "satva"?: string,
-    "aharaShakti"?: string,
-    "vyayamaShakti"?: string,
-    "vaya"?: string,
-    "location"?: string,
-    "severity"?: string,
-    "duration"?: string,
-    "triggers"?: string,
-    "medications"?: string,
-    "associatedSymptoms"?: string,
-    "notes"?: string
-  }
-}`;
-          const rawNvidia = await generateWithNvidia(nvidiaKey, [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: prompt }
-          ], { model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-4-maverick-17b-128e-instruct', temperature: 0.1, max_tokens: 1800, responseFormat: { type: 'json_object' } });
-          const parsedNvidia = extractJsonFromText(rawNvidia);
-          const dimensions = ['prakriti','vikriti','sara','samhanana','pramana','satmya','satva','aharaShakti','vyayamaShakti','vaya'];
-          if (payload.isAyurvedic && parsedNvidia?.isFinished && parsedNvidia?.urgentReferral !== true && dimensions.some(field => !['answered','declined','examination-needed'].includes(parsedNvidia?.dashavidhaCoverage?.[field]))) {
-            return json({ error: 'Ayurvedic intake is incomplete. Please retry the next question.' }, 422);
-          }
-          if (parsedNvidia && (parsedNvidia.isFinished || (parsedNvidia.question && Array.isArray(parsedNvidia.options) && parsedNvidia.options.length >= 2))) {
-            return json(parsedNvidia);
-          }
-        } catch (err) {
-          console.warn('NVIDIA NIM anamnesis error, falling back to Gemini:', err);
-        }
-      }
+  "responseType": "single_choice",
+  "capturedField": "nature",
+  "isFinished": false,
+  "urgentReferral": false,
+  "completionMessage": "",
+  "caseSummaryUpdate": {}
+}
 
-      return json({ error: 'No AI model available' }, 503);
+If complete, return:
+{"question":"","options":[],"responseType":"single_choice","capturedField":"notes","isFinished":true,"urgentReferral":false,"completionMessage":"Thank you. I have prepared your clinical briefing for the doctor. You can now upload previous reports or continue the appointment.","caseSummaryUpdate":{}} (with completionMessage in ${language.name}).
+Return ONLY pure JSON.`;
+
+      const normalize = (text: any) => String(text || '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+      const validate = (value: any) => {
+        if (!value || typeof value.isFinished !== 'boolean') throw new Error('Incomplete clinical response');
+        if (value.isFinished) {
+          if (!String(value.completionMessage || '').trim()) throw new Error('Missing completion message');
+          if (discovery) throw new Error('Chief complaint discovery cannot finish intake');
+          if (payload.isAyurvedic && value.urgentReferral !== true && missing.length) throw new Error('Ask the next missing Dashavidha dimension: ' + missing.join(', '));
+        } else {
+          if (!normalize(value.question)) throw new Error('Missing question');
+          if (history.some((m: any) => m.sender === 'ai' && normalize(m.text) === normalize(value.question))) throw new Error('Question already answered; ask a different relevant question');
+          if (!fields.includes(value.capturedField)) {
+            value.capturedField = payload.isAyurvedic && missing.length ? missing[0] : 'notes';
+          }
+          if (payload.isAyurvedic && !discovery && !missing.includes(value.capturedField)) {
+            value.capturedField = missing[0] || 'prakriti';
+          }
+          const seen = new Set();
+          value.options = (Array.isArray(value.options) ? value.options : []).map((o: any) => {
+            if (typeof o === 'string') return { text: o.trim(), iconType: 'target' };
+            if (o && typeof o.text === 'string') return { text: o.text.trim(), iconType: o.iconType || 'target' };
+            return null;
+          }).filter((o: any) => {
+            if (!o || !o.text) return false;
+            const label = normalize(o.text);
+            if (seen.has(label)) return false;
+            seen.add(label);
+            return true;
+          }).slice(0, 8);
+          if (value.options.length < 2) throw new Error('Generate at least two distinct relevant answer options');
+        }
+        value.caseSummaryUpdate = Object.fromEntries(Object.entries(value.caseSummaryUpdate || {}).filter(([field, text]) => fields.includes(field) && typeof text === 'string' && text.trim()));
+        value.dashavidhaCoverage = Object.fromEntries(dimensions.map(field => [field, answered.has(field) ? (['declined','examination-needed'].includes(value.dashavidhaCoverage?.[field]) ? value.dashavidhaCoverage[field] : 'answered') : 'pending']));
+        return value;
+      };
+      let repair = '';
+      // Prioritize NVIDIA NIM (Llama 3.1 8B Instruct) for ultra-fast, intelligent clinical triage
+      const providers = [...(nvidiaKey ? ['nvidia'] : []), ...(key ? ['gemini'] : [])];
+      for (const provider of providers) {
+        try {
+          const instruction = prompt + (repair ? '\nThe previous draft was invalid. Correct this issue: ' + repair : '');
+          const raw = provider === 'nvidia'
+            ? extractJsonFromText(await generateWithNvidia(nvidiaKey!, [
+                { role: 'system', content: 'You are an expert Clinical Diagnostic AI assistant for Swasthya Setu. Output only valid JSON matching the requested structure.' },
+                { role: 'user', content: instruction }
+              ], {
+                model: Deno.env.get('NVIDIA_CLINICAL_MODEL') || 'meta/llama-3.1-8b-instruct',
+                temperature: 0.05,
+                max_tokens: 320,
+                timeoutMs: 6500,
+                responseFormat: { type: 'json_object' }
+              }))
+            : parseModelJson(await generate(key!, model, instruction, schema, 0.1, 800, 'minimal', true));
+          return json(validate(raw));
+        } catch (error) { repair = error instanceof Error ? error.message : 'Generate a valid clinical step'; }
+      }
+      return json({ error: 'Clinical response is temporarily unavailable', retryable: true }, 503);
     }
 
     if (action === 'clinical_summary') {
